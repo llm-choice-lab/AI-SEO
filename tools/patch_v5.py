@@ -1,0 +1,168 @@
+"""Builds LLM Conjoint Lab v5 from the recovered v3 file: v3 kept as is, plus
+Study 3 preset, ACES storefront through the Selenium helper, conjoint -> locked prediction -> storefront
+order, pilot sizes, validation check, spend cap, and storefront position model."""
+import re, sys, json
+from pathlib import Path
+
+src = (Path(__file__).resolve().parent.parent / 'versions' / 'LLM_Conjoint_Lab_v3.html').read_text(encoding='utf-8')
+out_path = Path(sys.argv[1])
+
+def rep(s, old, new, count=1):
+    n = s.count(old)
+    if n < 1:
+        raise SystemExit('NOT FOUND: ' + old[:120])
+    if count == 1 and n != 1:
+        raise SystemExit(f'NOT UNIQUE ({n}): ' + old[:120])
+    return s.replace(old, new)
+
+s = src
+
+# ---------------------------------------------------------------- titles / version
+s = s.replace('LLM Conjoint Lab v3 app', 'LLM Conjoint Lab v5 app')
+s = rep(s, '<span class="sub">v3 · build a study', '<span class="sub">v5 · build a study')
+s = re.sub(r'<title>[^<]*</title>', '<title>LLM Conjoint Lab v5</title>', s, count=1)
+
+# ---------------------------------------------------------------- engine: linked attributes in the conjoint wording
+s = rep(s, "      if (disc.length) p += (scale.length ? 'It has ' : `The ${ord} ${product} has `) + list(disc.map(a => `a ${a.name} of ${P[a.name].display}`)) + '. ';",
+        "      if (disc.length) p += (scale.length ? 'It has ' : `The ${ord} ${product} has `) + list(disc.flatMap(a => [`a ${a.name} of ${P[a.name].display}`, ...Object.entries(a.also || {}).map(([col, map]) => `a ${col} of ${map[P[a.name].display] ?? ''}`)])) + '. ';")
+
+# ---------------------------------------------------------------- state defaults
+s = rep(s, "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini' },",
+        "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini', reasoning: 'low', runSize: 'pilot', pilotPairs: 20, pilotTrials: 20, pilotRanks: 3, spendCap: 30 },\n  aces: null, acesDesign: null,")
+
+# ---------------------------------------------------------------- presets: Study 3 built in
+s = rep(s, "function renderPresets() { $('presetSel').innerHTML = ['Study 2 (speakers, built in)', ...Object.keys(presets)]",
+        "function renderPresets() { $('presetSel').innerHTML = ['Study 3 (e-readers, ACES storefront, built in)', 'Study 2 (speakers, built in)', ...Object.keys(presets)]")
+s = rep(s, "$('presetLoad').onclick = () => { const n = $('presetSel').value; if (n.startsWith('Study 2')) { loadStudy2(); return; }",
+        "$('presetLoad').onclick = () => { const n = $('presetSel').value; if (n.startsWith('Study 3')) { loadStudy3(); return; } if (n.startsWith('Study 2')) { loadStudy2(); return; }")
+
+# ---------------------------------------------------------------- module card: ACES option
+s = rep(s, """<option value="image" ${S.tasks.storeMode === 'image' ? 'selected' : ''}>Screenshot (models that read images)</option>""",
+        """<option value="image" ${S.tasks.storeMode === 'image' ? 'selected' : ''}>Screenshot (models that read images)</option><option value="aces" ${S.tasks.storeMode === 'aces' ? 'selected' : ''}>ACES storefront (Selenium helper, v6 procedure)</option>""")
+
+# ---------------------------------------------------------------- headers shown: add linked columns (e.g. Resolution after Screen type)
+s = rep(s, "function showHeaders() { return ['Name', ...S.study.attrs.map(a => a.name).filter(n => S.val.headers.includes(n))]; }",
+        "function showHeaders() { return ['Name', ...S.study.attrs.flatMap(a => [a.name, ...Object.keys(a.also || {})]).filter(n => S.val.headers.includes(n))]; }")
+
+# ---------------------------------------------------------------- model call: system message, tools, image detail, reasoning effort
+old_call_start = s.index('async function callModel(u, prompt, image, simTask) {')
+old_call_end = s.index('async function callRetry(')
+new_call = r'''async function callModel(u, prompt, image, simTask, o = {}) {
+  const m = u.m, t0 = performance.now(), temp = o.temperature !== undefined ? o.temperature : tempFor(u), maxT = +(o.maxTokens || S.settings.maxTokens) || 2000; let text = '', inTok = null, outTok = null, cost = null, served = m.model, args = null;
+  if (m.provider === 'sim') { const a = Sim.answer(m, simTask); await new Promise(r => setTimeout(r, 5)); if (a && typeof a === 'object') return { text: a.text, args: a.args, ms: Math.round(performance.now() - t0), served: 'simulated' }; return { text: a, ms: Math.round(performance.now() - t0), served: 'simulated' }; }
+  const key = keys[m.provider]; if (!key) throw new ApiError(`No ${m.provider} key (page 4).`, 0, false);
+  if (m.provider === 'openrouter' || m.provider === 'openai') {
+    const content = image ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: image, ...(o.detail ? { detail: o.detail } : {}) } }] : prompt;
+    const messages = [...(o.system ? [{ role: 'system', content: o.system }] : []), { role: 'user', content }];
+    const body = { model: m.model, messages }; if (m.provider === 'openai') body.max_completion_tokens = maxT; else { body.max_tokens = maxT; body.usage = { include: true }; if (S.settings.reasoning) body.reasoning = { effort: S.settings.reasoning }; } if (temp != null) body.temperature = temp;
+    if (o.tool) { body.tools = [{ type: 'function', function: o.tool }]; body.tool_choice = 'auto'; body.parallel_tool_calls = false; }
+    const j = await httpJSON(PROV[m.provider] + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, ...(m.provider === 'openrouter' ? { 'X-Title': 'LLM Conjoint Lab' } : {}) }, body: JSON.stringify(body) });
+    const mc = j.choices?.[0]?.message; text = typeof mc?.content === 'string' ? mc.content : Array.isArray(mc?.content) ? mc.content.map(p => p.text || '').join('') : ''; inTok = j.usage?.prompt_tokens ?? null; outTok = j.usage?.completion_tokens ?? null; cost = j.usage?.cost ?? null; served = j.model || m.model;
+    const calls = (mc?.tool_calls || []).filter(c => c.function?.name === (o.tool?.name || '')); if (calls.length === 1) { try { args = JSON.parse(calls[0].function.arguments || '{}'); } catch (e) { args = { _bad: true }; } } else if (calls.length > 1) args = { _multiple: true };
+  } else if (m.provider === 'anthropic') {
+    const content = image ? [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: image.split(',')[1] } }, { type: 'text', text: prompt }] : prompt;
+    const body = { model: m.model, max_tokens: maxT, messages: [{ role: 'user', content }] }; if (o.system) body.system = o.system; if (temp != null) body.temperature = Math.min(1, temp);
+    if (o.tool) body.tools = [{ name: o.tool.name, description: o.tool.description, input_schema: o.tool.parameters }];
+    const j = await httpJSON(PROV.anthropic + '/messages', { method: 'POST', headers: anthHeaders(), body: JSON.stringify(body) }); text = (j.content || []).filter(b => b.type === 'text').map(b => b.text).join(''); inTok = j.usage?.input_tokens ?? null; outTok = j.usage?.output_tokens ?? null; served = j.model || m.model;
+    const tu = (j.content || []).filter(b => b.type === 'tool_use'); if (tu.length === 1) args = tu[0].input; else if (tu.length > 1) args = { _multiple: true };
+  } else if (m.provider === 'google') {
+    const parts = [{ text: prompt }]; if (image) parts.push({ inline_data: { mime_type: 'image/png', data: image.split(',')[1] } });
+    const body = { contents: [{ role: 'user', parts }], generationConfig: { maxOutputTokens: maxT } }; if (temp != null) body.generationConfig.temperature = temp; if (o.system) body.systemInstruction = { parts: [{ text: o.system }] };
+    const strip = x => Array.isArray(x) ? x.map(strip) : (x && typeof x === 'object') ? Object.fromEntries(Object.entries(x).filter(([k]) => k !== 'additionalProperties' && k !== 'strict').map(([k, v]) => [k, strip(v)])) : x;
+    if (o.tool) body.tools = [{ functionDeclarations: [{ name: o.tool.name, description: o.tool.description, parameters: strip(o.tool.parameters) }] }];
+    const j = await httpJSON(`${PROV.google}/models/${encodeURIComponent(m.model.replace(/^models\//, ''))}:generateContent?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const ps = j.candidates?.[0]?.content?.parts || []; text = ps.filter(p => !p.thought && p.text).map(p => p.text).join(''); inTok = j.usageMetadata?.promptTokenCount ?? null; outTok = j.usageMetadata?.candidatesTokenCount ?? null; served = j.modelVersion || m.model;
+    const fc = ps.filter(p => p.functionCall); if (fc.length === 1) args = fc[0].functionCall.args; else if (fc.length > 1) args = { _multiple: true }; }
+  return { text, args, inTok, outTok, cost, served, ms: Math.round(performance.now() - t0) };
+}
+'''
+s = s[:old_call_start] + new_call + s[old_call_end:]
+s = rep(s, "async function callRetry(u, prompt, image, simTask, ctl) { for (let a = 0; ; a++) { try { return await callModel(u, prompt, image, simTask); }",
+        "async function callRetry(u, prompt, image, simTask, ctl, o) { for (let a = 0; ; a++) { try { return await callModel(u, prompt, image, simTask, o); }")
+
+# ---------------------------------------------------------------- simulated models answer the ACES task too
+s = rep(s, "    const us = task.products.map(p => this.u(m, productForPrediction(p)) + this.g(t) * 0.7);",
+        "    if (task.type === 'aces') { const us = task.products.map((p, k) => this.u(m, productForPrediction(p)) + (k < 5 ? 0.25 : 0) + this.g(t) * 0.7); const best = task.products[us.indexOf(Math.max(...us))], c = acesCard(best);\n      const args = { product_id: best.name, price: c.price, rating: c.rating }; acesSpecCols().forEach(col => args[acesKey(col)] = best.display[col]); if (t.r() < 0.04) args[acesKey(acesSpecCols()[0])] = 'misread'; return { text: 'Simulated reasoning.', args }; }\n    const us = task.products.map(p => this.u(m, productForPrediction(p)) + this.g(t) * 0.7);")
+
+# ---------------------------------------------------------------- prompts page: ACES preview
+s = rep(s, "    else if (S.tasks.storeMode === 'image') h += `<h3>C. Storefront · trial 1 (screenshot below; order reshuffles each trial)</h3><div class=\"preview\">${esc(E.storefrontImagePrompt(S.study.product))}</div>`;",
+        "    else if (S.tasks.storeMode === 'aces') h += acesPreviewHTML();\n    else if (S.tasks.storeMode === 'image') h += `<h3>C. Storefront · trial 1 (screenshot below; order reshuffles each trial)</h3><div class=\"preview\">${esc(E.storefrontImagePrompt(S.study.product))}</div>`;")
+
+# ---------------------------------------------------------------- runner: conjoint first, then lock, then storefront
+old_bt_start = s.index('function buildTasks(u) {')
+old_bt_end = s.index('async function doTask(u, t) {')
+new_bt = r'''function sizes() { const pilot = S.settings.runSize === 'pilot', perPair = S.study.counterbalance ? 2 : 1;
+  return { pairs: S.design ? (pilot ? S.design.slice(0, Math.max(1, +S.settings.pilotPairs || 20)) : S.design) : [], ranks: pilot ? Math.min(+S.tasks.rankRuns, +S.settings.pilotRanks || 3) : +S.tasks.rankRuns, trials: pilot ? Math.min(+S.tasks.storeTrials, +S.settings.pilotTrials || 20) : +S.tasks.storeTrials, perPair }; }
+function buildTasks(u, phase) { const R = resOf(u), T = [], z = sizes();
+  if (phase !== 'store') { if (S.tasks.conjoint && S.design) z.pairs.forEach(p => (S.study.counterbalance ? ['AB', 'BA'] : ['AB']).forEach(o => { const id = p.pair + ':' + o; if (!R.conjoint[id]) T.push({ kind: 'conjoint', id, pair: p, order: o }); }));
+    if (S.tasks.ranking && S.val.products.length) for (let i = 1; i <= z.ranks; i++) if (!R.ranking[i]) T.push({ kind: 'ranking', id: i }); }
+  if (phase !== 'first' && S.tasks.store && S.val.products.length) for (let i = 1; i <= z.trials; i++) if (!R.store[i]) T.push({ kind: 'store', id: i });
+  return T; }
+'''
+s = s[:old_bt_start] + new_bt + s[old_bt_end:]
+
+s = rep(s, "  const page = storePage(t.id), names = S.val.products.map(p => p.name), image = S.tasks.storeMode === 'image';",
+        "  if (S.tasks.storeMode === 'aces') return acesTrial(u, t.id, S.val.products, acesRunId('main'), R.store, acesOrder(t.id), ctl);\n  const page = storePage(t.id), names = S.val.products.map(p => p.name), image = S.tasks.storeMode === 'image';")
+
+old_ru_start = s.index('async function runUnit(u) {')
+old_ru_end = s.index("$('startAll').onclick")
+new_ru = r'''function spent() { let c = 0; Object.values(S.results).forEach(R => { ['conjoint', 'ranking', 'store'].forEach(k => Object.values(R[k] || {}).forEach(x => { c += x.cost || 0; })); Object.values(R.validation?.trials || {}).forEach(x => { c += x.cost || 0; }); }); return c; }
+let capWarned = false;
+async function workPhase(u, tasks, st, ctl, fn) { let next = 0, errRun = 0;
+  const worker = async () => { while (next < tasks.length && !ctl.stop && !globalStop) { while (run.paused && !globalStop) await new Promise(r => setTimeout(r, 250)); if (globalStop || ctl.stop) break;
+    if (+S.settings.spendCap > 0 && spent() >= +S.settings.spendCap) { if (!capWarned) { capWarned = true; run.paused = true; $('pauseAll').textContent = 'Resume'; log(`■ Spend cap reached ($${spent().toFixed(2)} of $${(+S.settings.spendCap).toFixed(2)}). Paused: raise the cap on page 4 and press Resume to carry on.`); } continue; }
+    const t = tasks[next++]; try { (await fn(t)) ? st.ok++ : st.bad++; errRun = 0; } catch (e) { st.err++; errRun++; log(`${u.label}: ✕ ${e.message.slice(0, 160)}`); if (!e.retry || errRun >= 5) { ctl.stop = true; st.status = 'stopped: ' + e.message.slice(0, 60); } }
+    st.done++; if (st.done % 10 === 0) save(); } };
+  await Promise.all(Array.from({ length: Math.max(1, +S.settings.conc || 1) }, worker)); }
+async function runUnit(u) { const ctl = run.ctl[u.key] = { stop: false }, first = buildTasks(u, 'first'), st = run.stats[u.key] = { total: first.length + buildTasks(u, 'store').length, done: 0, ok: 0, bad: 0, err: 0, status: 'running' };
+  log(`${u.label}: ${first.length} conjoint/ranking calls to go`);
+  await workPhase(u, first, st, ctl, t => doTask(u, t)); save();
+  if (S.tasks.store && !ctl.stop && !globalStop) {
+    if (S.tasks.conjoint && !(await lockPrediction(u))) { st.status = 'stopped: no prediction'; log(`${u.label}: storefront not started, because the conjoint could not be fitted yet.`); }
+    else { const store = buildTasks(u, 'store'); log(`${u.label}: prediction locked · ${store.length} storefront trials to go`); await workPhase(u, store, st, ctl, t => doTask(u, t)); } }
+  if (st.status === 'running') st.status = st.done >= st.total ? 'complete' : 'stopped'; save(); log(`${u.label}: ${st.status} (${st.ok} ok, ${st.bad} unclear/invalid, ${st.err} errors)`); }
+'''
+s = s[:old_ru_start] + new_ru + s[old_ru_end:]
+
+s = rep(s, "  if (S.tasks.store && S.tasks.storeMode === 'image') log('Screenshot storefront: models that cannot read images will error and stop.');",
+        "  if (S.tasks.store && S.tasks.storeMode === 'image') log('Screenshot storefront: models that cannot read images will error and stop.');\n  if (S.tasks.store && S.tasks.storeMode === 'aces') { if (!(await helperOK())) return log('ACES storefront needs the helper: start it with  python aces_helper.py  and open the Lab from http://127.0.0.1:8765'); await acesPrepare('main', S.val.products); log(`ACES storefront via helper ${HELPER.base} · ${S.settings.runSize === 'pilot' ? 'PILOT size' : 'FULL size'}`); }\n  capWarned = false;")
+
+# ---------------------------------------------------------------- analysis: locked prediction, ACES details, position model
+s = rep(s, "  if (out.avgRank && out.share) out.rhoRankStore = E.spearman(out.avgRank.map(v => -v), out.share);\n  return out; }",
+        "  if (out.avgRank && out.share) out.rhoRankStore = E.spearman(out.avgRank.map(v => -v), out.share);\n  acesAnalyse(u, out, R, P);\n  return out; }")
+s = rep(s, "    ${a.posShare ? `<h3>Storefront picks by page position</h3>",
+        "    ${acesResultsHTML(a)}${a.posShare ? `<h3>Storefront picks by page position</h3>")
+
+# ---------------------------------------------------------------- exports: storefront rows carry ACES fields
+s = rep(s, "  if (k === 'store') return U.flatMap(u => Object.entries(S.results[u.key]?.store || {}).map(([id, v]) => ({ Run: u.label, Trial: id, PageOrder: v.order, Choice: v.choice ?? '', Position: v.position ?? '', Misreads: v.misreads ?? '', MisreadDetail: v.misread_detail, Raw: v.raw, Served: v.served })));",
+        "  if (k === 'store') return U.flatMap(u => Object.entries(S.results[u.key]?.store || {}).map(([id, v]) => ({ Run: u.label, Trial: id, PageOrder: v.order, Choice: v.choice ?? '', Position: v.position ?? '', Row: v.row ?? '', Col: v.col ?? '', Misreads: v.misreads ?? '', MisreadDetail: v.misread_detail, CartClickOK: v.cart_ok ?? '', Issues: v.issues ?? '', ReportedArgs: v.args ? JSON.stringify(v.args) : '', Raw: v.raw, Served: v.served, Cost: v.cost ?? '', InTokens: v.tin ?? '', OutTokens: v.tout ?? '' })));")
+
+# ---------------------------------------------------------------- page markup: run size, spend cap, validation, helper status, reasoning
+s = rep(s, """<button class="b sec" id="clearAll">Clear all results</button></div>""",
+        """<button class="b sec" id="clearAll">Clear all results</button></div>
+    <div class="row" style="margin-top:10px;align-items:flex-end">
+      <label>Run size <span class="info" data-tip="Pilot uses the first pairs, rankings and storefront trials of the same fixed design, so a later Full run carries on where the pilot stopped. Use the pilot to check everything works and to see the real cost per call.">i</span> <select id="runSize"><option value="pilot">Pilot</option><option value="full">Full</option></select></label>
+      <label>Pilot pairs <input id="pilotPairs" type="number" min="1" style="width:80px"></label>
+      <label>Pilot rankings <input id="pilotRanks" type="number" min="1" style="width:80px"></label>
+      <label>Pilot storefront trials <input id="pilotTrials" type="number" min="1" style="width:80px"></label>
+      <button class="b sec" id="runValidation">Validation check (storefront)</button>
+      <span id="helperStatus" class="pill"></span>
+    </div>
+    <p class="hint" id="spendLine"></p>""")
+s = rep(s, """      <label style="flex-direction:row;align-items:center;gap:6px;font-weight:500"><input type="checkbox" id="reask"> Re-ask once if unclear</label>""",
+        """      <label style="flex-direction:row;align-items:center;gap:6px;font-weight:500"><input type="checkbox" id="reask"> Re-ask once if unclear</label>
+      <label>Reasoning effort (OpenRouter) <span class="info" data-tip="For models that think before answering. Low keeps cost down; blank sends nothing and uses each model's default.">i</span> <select id="reasoning"><option value="">model default</option><option value="minimal">minimal</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
+      <label>Spend cap, US$ <span class="info" data-tip="The run pauses when the total cost reported by OpenRouter reaches this amount. Raise it and press Resume to carry on. 0 = no cap. Costs come from OpenRouter only; direct OpenAI/Anthropic/Google calls don't report cost.">i</span> <input id="spendCap" type="number" min="0" step="1" style="width:90px"></label>""")
+
+# ---------------------------------------------------------------- separate storage from v3, sync new settings
+s = rep(s, "indexedDB.open('conjointLabV3', 1)", "indexedDB.open('conjointLabV5', 1)")
+s = s.replace("conjointLabV3.keys", "conjointLabV5.keys")
+s = rep(s, "function syncAll() { syncStudy(); syncSettings();", "function syncAll() { syncStudy(); syncSettings(); syncV5();")
+
+# ---------------------------------------------------------------- new code: ACES storefront, Study 3, helper, lock, validation, analysis
+new_code = (Path(__file__).parent / 'v5_additions.js').read_text(encoding='utf-8')
+marker = "(async () => { await IDB.open();"
+s = rep(s, marker, new_code + "\n" + marker)
+
+out_path.write_text(s, encoding='utf-8')
+print('written', out_path, len(s))

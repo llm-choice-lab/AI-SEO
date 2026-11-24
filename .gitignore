@@ -1,6 +1,3 @@
-conj.json
-er.json
-*.csv
-!studies/*.csv
-node_modules/
-.DS_Store
+aces_store/
+__pycache__/
+*.pyc
