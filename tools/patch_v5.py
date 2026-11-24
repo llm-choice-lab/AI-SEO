@@ -1,6 +1,6 @@
-"""Builds LLM Conjoint Lab v5 from the recovered v3 file: v3 kept as is, plus
-Study 3 preset, ACES storefront through the Selenium helper, conjoint -> locked prediction -> storefront
-order, pilot sizes, validation check, spend cap, and storefront position model."""
+"""Builds LLM Conjoint Lab v5 from the recovered v3 file: v3 kept as is (including its storefront), plus
+Study 3 preset, conjoint -> locked prediction -> storefront order, pilot sizes, validation check,
+spend cap, reasoning setting, and a storefront position model."""
 import re, sys, json
 from pathlib import Path
 
@@ -28,17 +28,14 @@ s = rep(s, "      if (disc.length) p += (scale.length ? 'It has ' : `The ${ord} 
 
 # ---------------------------------------------------------------- state defaults
 s = rep(s, "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini' },",
-        "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini', reasoning: 'low', runSize: 'pilot', pilotPairs: 20, pilotTrials: 20, pilotRanks: 3, spendCap: 30 },\n  aces: null, acesDesign: null,")
+        "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini', reasoning: 'low', runSize: 'pilot', pilotPairs: 20, pilotTrials: 20, pilotRanks: 3, spendCap: 30, validationTrials: 10 },")
 
 # ---------------------------------------------------------------- presets: Study 3 built in
 s = rep(s, "function renderPresets() { $('presetSel').innerHTML = ['Study 2 (speakers, built in)', ...Object.keys(presets)]",
-        "function renderPresets() { $('presetSel').innerHTML = ['Study 3 (e-readers, ACES storefront, built in)', 'Study 2 (speakers, built in)', ...Object.keys(presets)]")
+        "function renderPresets() { $('presetSel').innerHTML = ['Study 3 (e-readers, built in)', 'Study 2 (speakers, built in)', ...Object.keys(presets)]")
 s = rep(s, "$('presetLoad').onclick = () => { const n = $('presetSel').value; if (n.startsWith('Study 2')) { loadStudy2(); return; }",
         "$('presetLoad').onclick = () => { const n = $('presetSel').value; if (n.startsWith('Study 3')) { loadStudy3(); return; } if (n.startsWith('Study 2')) { loadStudy2(); return; }")
 
-# ---------------------------------------------------------------- module card: ACES option
-s = rep(s, """<option value="image" ${S.tasks.storeMode === 'image' ? 'selected' : ''}>Screenshot (models that read images)</option>""",
-        """<option value="image" ${S.tasks.storeMode === 'image' ? 'selected' : ''}>Screenshot (models that read images)</option><option value="aces" ${S.tasks.storeMode === 'aces' ? 'selected' : ''}>ACES storefront (Selenium helper, v6 procedure)</option>""")
 
 # ---------------------------------------------------------------- headers shown: add linked columns (e.g. Resolution after Screen type)
 s = rep(s, "function showHeaders() { return ['Name', ...S.study.attrs.map(a => a.name).filter(n => S.val.headers.includes(n))]; }",
@@ -80,13 +77,7 @@ s = s[:old_call_start] + new_call + s[old_call_end:]
 s = rep(s, "async function callRetry(u, prompt, image, simTask, ctl) { for (let a = 0; ; a++) { try { return await callModel(u, prompt, image, simTask); }",
         "async function callRetry(u, prompt, image, simTask, ctl, o) { for (let a = 0; ; a++) { try { return await callModel(u, prompt, image, simTask, o); }")
 
-# ---------------------------------------------------------------- simulated models answer the ACES task too
-s = rep(s, "    const us = task.products.map(p => this.u(m, productForPrediction(p)) + this.g(t) * 0.7);",
-        "    if (task.type === 'aces') { const us = task.products.map((p, k) => this.u(m, productForPrediction(p)) + (k < 5 ? 0.25 : 0) + this.g(t) * 0.7); const best = task.products[us.indexOf(Math.max(...us))], c = acesCard(best);\n      const args = { product_id: best.name, price: c.price, rating: c.rating }; acesSpecCols().forEach(col => args[acesKey(col)] = best.display[col]); if (t.r() < 0.04) args[acesKey(acesSpecCols()[0])] = 'misread'; return { text: 'Simulated reasoning.', args }; }\n    const us = task.products.map(p => this.u(m, productForPrediction(p)) + this.g(t) * 0.7);")
 
-# ---------------------------------------------------------------- prompts page: ACES preview
-s = rep(s, "    else if (S.tasks.storeMode === 'image') h += `<h3>C. Storefront · trial 1 (screenshot below; order reshuffles each trial)</h3><div class=\"preview\">${esc(E.storefrontImagePrompt(S.study.product))}</div>`;",
-        "    else if (S.tasks.storeMode === 'aces') h += acesPreviewHTML();\n    else if (S.tasks.storeMode === 'image') h += `<h3>C. Storefront · trial 1 (screenshot below; order reshuffles each trial)</h3><div class=\"preview\">${esc(E.storefrontImagePrompt(S.study.product))}</div>`;")
 
 # ---------------------------------------------------------------- runner: conjoint first, then lock, then storefront
 old_bt_start = s.index('function buildTasks(u) {')
@@ -101,8 +92,6 @@ function buildTasks(u, phase) { const R = resOf(u), T = [], z = sizes();
 '''
 s = s[:old_bt_start] + new_bt + s[old_bt_end:]
 
-s = rep(s, "  const page = storePage(t.id), names = S.val.products.map(p => p.name), image = S.tasks.storeMode === 'image';",
-        "  if (S.tasks.storeMode === 'aces') return acesTrial(u, t.id, S.val.products, acesRunId('main'), R.store, acesOrder(t.id), ctl);\n  const page = storePage(t.id), names = S.val.products.map(p => p.name), image = S.tasks.storeMode === 'image';")
 
 old_ru_start = s.index('async function runUnit(u) {')
 old_ru_end = s.index("$('startAll').onclick")
@@ -125,19 +114,19 @@ async function runUnit(u) { const ctl = run.ctl[u.key] = { stop: false }, first 
 s = s[:old_ru_start] + new_ru + s[old_ru_end:]
 
 s = rep(s, "  if (S.tasks.store && S.tasks.storeMode === 'image') log('Screenshot storefront: models that cannot read images will error and stop.');",
-        "  if (S.tasks.store && S.tasks.storeMode === 'image') log('Screenshot storefront: models that cannot read images will error and stop.');\n  if (S.tasks.store && S.tasks.storeMode === 'aces') { if (!(await helperOK())) return log('ACES storefront needs the helper: start it with  python aces_helper.py  and open the Lab from http://127.0.0.1:8765'); await acesPrepare('main', S.val.products); log(`ACES storefront via helper ${HELPER.base} · ${S.settings.runSize === 'pilot' ? 'PILOT size' : 'FULL size'}`); }\n  capWarned = false;")
+        "  if (S.tasks.store && S.tasks.storeMode === 'image') log('Screenshot storefront: models that cannot read images will error and stop.');\n  log(`Starting ${S.settings.runSize === 'pilot' ? 'PILOT' : 'FULL'} run.`); capWarned = false;")
 
-# ---------------------------------------------------------------- analysis: locked prediction, ACES details, position model
+# ---------------------------------------------------------------- analysis: locked prediction, read-back, position model
 s = rep(s, "  if (out.avgRank && out.share) out.rhoRankStore = E.spearman(out.avgRank.map(v => -v), out.share);\n  return out; }",
         "  if (out.avgRank && out.share) out.rhoRankStore = E.spearman(out.avgRank.map(v => -v), out.share);\n  acesAnalyse(u, out, R, P);\n  return out; }")
 s = rep(s, "    ${a.posShare ? `<h3>Storefront picks by page position</h3>",
         "    ${acesResultsHTML(a)}${a.posShare ? `<h3>Storefront picks by page position</h3>")
 
-# ---------------------------------------------------------------- exports: storefront rows carry ACES fields
+# ---------------------------------------------------------------- exports: storefront rows carry cost and token fields
 s = rep(s, "  if (k === 'store') return U.flatMap(u => Object.entries(S.results[u.key]?.store || {}).map(([id, v]) => ({ Run: u.label, Trial: id, PageOrder: v.order, Choice: v.choice ?? '', Position: v.position ?? '', Misreads: v.misreads ?? '', MisreadDetail: v.misread_detail, Raw: v.raw, Served: v.served })));",
         "  if (k === 'store') return U.flatMap(u => Object.entries(S.results[u.key]?.store || {}).map(([id, v]) => ({ Run: u.label, Trial: id, PageOrder: v.order, Choice: v.choice ?? '', Position: v.position ?? '', Row: v.row ?? '', Col: v.col ?? '', Misreads: v.misreads ?? '', MisreadDetail: v.misread_detail, CartClickOK: v.cart_ok ?? '', Issues: v.issues ?? '', ReportedArgs: v.args ? JSON.stringify(v.args) : '', Raw: v.raw, Served: v.served, Cost: v.cost ?? '', InTokens: v.tin ?? '', OutTokens: v.tout ?? '' })));")
 
-# ---------------------------------------------------------------- page markup: run size, spend cap, validation, helper status, reasoning
+# ---------------------------------------------------------------- page markup: run size, spend cap, validation, reasoning
 s = rep(s, """<button class="b sec" id="clearAll">Clear all results</button></div>""",
         """<button class="b sec" id="clearAll">Clear all results</button></div>
     <div class="row" style="margin-top:10px;align-items:flex-end">
@@ -145,8 +134,8 @@ s = rep(s, """<button class="b sec" id="clearAll">Clear all results</button></di
       <label>Pilot pairs <input id="pilotPairs" type="number" min="1" style="width:80px"></label>
       <label>Pilot rankings <input id="pilotRanks" type="number" min="1" style="width:80px"></label>
       <label>Pilot storefront trials <input id="pilotTrials" type="number" min="1" style="width:80px"></label>
+      <label>Validation trials <span class="info" data-tip="Validation check: one product is made best on every attribute with a clear direction and the others worst. A model that reads the page and chooses logically should pick it every time.">i</span> <input id="validationTrials" type="number" min="1" style="width:70px"></label>
       <button class="b sec" id="runValidation">Validation check (storefront)</button>
-      <span id="helperStatus" class="pill"></span>
     </div>
     <p class="hint" id="spendLine"></p>""")
 s = rep(s, """      <label style="flex-direction:row;align-items:center;gap:6px;font-weight:500"><input type="checkbox" id="reask"> Re-ask once if unclear</label>""",
@@ -154,12 +143,16 @@ s = rep(s, """      <label style="flex-direction:row;align-items:center;gap:6px;
       <label>Reasoning effort (OpenRouter) <span class="info" data-tip="For models that think before answering. Low keeps cost down; blank sends nothing and uses each model's default.">i</span> <select id="reasoning"><option value="">model default</option><option value="minimal">minimal</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
       <label>Spend cap, US$ <span class="info" data-tip="The run pauses when the total cost reported by OpenRouter reaches this amount. Raise it and press Resume to carry on. 0 = no cap. Costs come from OpenRouter only; direct OpenAI/Anthropic/Google calls don't report cost.">i</span> <input id="spendCap" type="number" min="0" step="1" style="width:90px"></label>""")
 
+# ---------------------------------------------------------------- storefront page: cards wide enough for their longest line
+s = rep(s, "rows = Math.ceil(order.length / cols), W = 290, H = 80 + 28 * heads.length, pad = 16;",
+        "rows = Math.ceil(order.length / cols), W = cardWidth(order, heads), H = 80 + 28 * heads.length, pad = 16;")
+
 # ---------------------------------------------------------------- separate storage from v3, sync new settings
 s = rep(s, "indexedDB.open('conjointLabV3', 1)", "indexedDB.open('conjointLabV5', 1)")
 s = s.replace("conjointLabV3.keys", "conjointLabV5.keys")
 s = rep(s, "function syncAll() { syncStudy(); syncSettings();", "function syncAll() { syncStudy(); syncSettings(); syncV5();")
 
-# ---------------------------------------------------------------- new code: ACES storefront, Study 3, helper, lock, validation, analysis
+# ---------------------------------------------------------------- new code: Study 3, lock, validation, analysis
 new_code = (Path(__file__).parent / 'v5_additions.js').read_text(encoding='utf-8')
 marker = "(async () => { await IDB.open();"
 s = rep(s, marker, new_code + "\n" + marker)
