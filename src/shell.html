@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Conjoint Lab</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1d1d1b;--muted:#6b6a65;--line:#e3e1da;--accent:#2f5d8a;--accent2:#e8eef5;--good:#2e7d4f;--bad:#b3412f;--warn:#a66a00}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;font-weight:650}
+header .ver{color:var(--muted);font-size:12px}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{border:0;background:none;padding:7px 11px;border-radius:7px;cursor:pointer;color:var(--muted);font:inherit}
+nav button.on{background:var(--accent2);color:var(--accent);font-weight:600}
+main{max-width:1180px;margin:0 auto;padding:20px}
+section.page{display:none}section.page.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px}
+.card h3{font-size:13.5px;margin:14px 0 6px}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+label{display:inline-flex;align-items:center;gap:6px;margin:4px 12px 4px 0}
+input[type=text],input[type=number],input[type=password],select,textarea{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+textarea{width:100%;min-height:110px;font:12.5px/1.45 ui-monospace,Consolas,monospace}
+button.btn{font:inherit;padding:7px 13px;border-radius:7px;border:1px solid var(--line);background:#fff;cursor:pointer}
+button.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.btn.danger{color:var(--bad)}
+button.btn:disabled{opacity:.5;cursor:default}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;background:#faf9f6}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td input[type=text],td input[type=number],td select{width:100%;padding:4px 6px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.grow{flex:1;min-width:280px}
+.navbtns{display:flex;justify-content:space-between;margin-top:8px}
+.tip{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--accent2);color:var(--accent);font-size:11px;text-align:center;line-height:16px;cursor:help;font-weight:700;position:relative}
+.tip:hover::after{content:attr(data-tip);position:absolute;left:20px;top:-4px;width:300px;background:#1d1d1b;color:#fff;font-weight:400;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.4;text-align:left;z-index:20;white-space:normal}
+.bar{height:8px;background:var(--accent2);border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;background:#eee}
+.pill.good{background:#e3f1e8;color:var(--good)}.pill.bad{background:#f7e4e0;color:var(--bad)}.pill.warn{background:#f8eed9;color:var(--warn)}
+#log{height:180px;overflow:auto;background:#1d1d1b;color:#d7d5cf;font:12px/1.4 ui-monospace,Consolas,monospace;padding:8px;border-radius:7px;white-space:pre-wrap}
+canvas.preview{max-width:100%;border:1px solid var(--line);border-radius:6px}
+.sig{color:var(--good);font-weight:600}
+.notice{background:#fff8e6;border:1px solid #f0dfb0;padding:9px 12px;border-radius:7px;margin:8px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>LLM Conjoint Lab</h1><span class="ver" id="ver"></span>
+  <nav id="nav"></nav>
+</header>
+<main>
+<section class="page" data-page="setup" data-title="1. Keys & models">
+  <div class="card">
+    <h2>API keys <span class="tip" data-tip="Keys stay in this browser on this computer. They are never saved into project files or exports. Tick 'Remember keys' to keep them between sessions.">i</span></h2>
+    <div class="row">
+      <label>OpenRouter <input type="password" id="key_openrouter" size="34" placeholder="sk-or-..."></label>
+      <label>OpenAI <input type="password" id="key_openai" size="26" placeholder="optional"></label>
+      <label>Anthropic <input type="password" id="key_anthropic" size="26" placeholder="optional"></label>
+      <label>Google <input type="password" id="key_google" size="26" placeholder="optional"></label>
+    </div>
+    <label><input type="checkbox" id="rememberKeys"> Remember keys in this browser</label>
+    <label>Parallel requests <input type="number" id="concurrency" min="1" max="32" value="6" style="width:60px"> <span class="tip" data-tip="How many API calls run at the same time, across all models. Lower it if you hit rate limits (HTTP 429).">i</span></label>
+  </div>
+  <div class="card">
+    <h2>Models <span class="tip" data-tip="Every model gets exactly the same conjoint pairs, ranking orders and storefront pages. 'sim' models are simulated (no API calls) for testing the pipeline.">i</span></h2>
+    <p class="muted small">Plan: 3 providers × 3 tiers. Use <b>Fetch OpenRouter list</b> to pick current model IDs. Vision models get screenshots; others get the same page as text.</p>
+    <table id="modelTable"></table>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="addModel">+ Add model</button>
+      <button class="btn" id="fetchModels">Fetch OpenRouter list</button>
+      <button class="btn" id="addSims">Add 3 simulated models (testing)</button>
+      <span id="fetchStatus" class="muted small"></span>
+    </div>
+    <datalist id="orModels"></datalist>
+  </div>
+</section>
+
+<section class="page" data-page="study" data-title="2. Study">
+  <div class="card">
+    <h2>Study</h2>
+    <div class="row">
+      <label>Saved studies <select id="studyPick"></select></label>
+      <button class="btn" id="studyNew">New blank study</button>
+      <button class="btn" id="studyDup">Duplicate</button>
+      <button class="btn" id="studyLoadPreset">Load Study 3 preset (e-readers)</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label>Name <input type="text" id="s_name" size="46"></label>
+      <label>Product (singular) <input type="text" id="s_category" size="14"></label>
+      <label>Plural <input type="text" id="s_plural" size="14"></label>
+      <label>Seed <input type="number" id="s_seed" style="width:110px"> <span class="tip" data-tip="The random seed fixes the conjoint pairs and storefront layouts. Same seed = same design, so runs can be repeated exactly.">i</span></label>
+    </div>
+    <div id="lockNote"></div>
+  </div>
+  <div class="card">
+    <h2>Attributes <span class="tip" data-tip="Continuous attributes enter the regression as numbers (Product 1 minus Product 2). Categorical attributes use the first level as the reference. 'Better' is only used to build the extreme-condition validation check.">i</span></h2>
+    <table id="attrTable"></table>
+    <button class="btn" id="addAttr" style="margin-top:8px">+ Add attribute</button>
+  </div>
+  <div class="card">
+    <h2>Conditions <span class="tip" data-tip="Run the same study under different settings for within-model comparisons. Leave temperature blank to use each model's default (some reasoning models reject a temperature).">i</span></h2>
+    <table id="condTable"></table>
+    <button class="btn" id="addCond" style="margin-top:8px">+ Add condition</button>
+  </div>
+</section>
+
+<section class="page" data-page="products" data-title="3. Products">
+  <div class="card">
+    <h2>Storefront products <span class="tip" data-tip="These products appear on every storefront page (positions shuffled each trial) and in the ranking task. The conjoint utilities are applied to them to predict choice shares. The name is for your records; cards show the generic card title.">i</span></h2>
+    <div style="overflow:auto"><table id="prodTable"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="addProd">+ Add product</button>
+    </div>
+    <h3>Paste rows</h3>
+    <p class="muted small">Paste from a spreadsheet: a header row with <code>id, name, rating, reviews</code> and the attribute names, then one product per row (tab or comma separated). Rows replace the current list.</p>
+    <textarea id="pasteRows" placeholder="id	name	rating	reviews	Price	Battery life	..."></textarea>
+    <button class="btn" id="applyPaste">Replace products with pasted rows</button>
+  </div>
+  <div class="card">
+    <h2>Card preview</h2>
+    <canvas id="cardPreview" class="preview"></canvas>
+  </div>
+</section>
+
+<section class="page" data-page="design" data-title="4. Prompts & design">
+  <div class="card">
+    <h2>A. Conjoint</h2>
+    <div class="row">
+      <label>Pairs <input type="number" id="c_pairs" style="width:90px"></label>
+      <label><input type="checkbox" id="c_counter"> Counterbalance (show each pair both ways) <span class="tip" data-tip="Each pair is asked A-B and B-A. Position bias cancels out of the attribute effects and is estimated by the constant. Doubles the calls.">i</span></label>
+    </div>
+    <h3>Prompt <span class="muted small">placeholders: {product} {products} {first} {second}</span></h3>
+    <textarea id="c_prompt"></textarea>
+    <h3>Re-ask when the answer is unclear <span class="tip" data-tip="An unclear answer is re-asked once with this follow-up. If it is still unclear it is recorded as missing, never defaulted to 'first'.">i</span></h3>
+    <textarea id="c_reask" style="min-height:50px"></textarea>
+    <h3>Example</h3><pre id="c_example" class="small" style="white-space:pre-wrap;background:#faf9f6;padding:10px;border-radius:6px"></pre>
+  </div>
+  <div class="card">
+    <h2>B. Ranking (Rotman bot) <span class="tip" data-tip="The model ranks all storefront products in one go, several times with the list shuffled each time. The average rank is compared with the ranking its own conjoint predicts (Spearman rho), as in Study 2's Rotman-bot validation.">i</span></h2>
+    <label><input type="checkbox" id="r_enabled"> Include</label>
+    <label>Repeats <input type="number" id="r_repeats" style="width:70px"></label>
+    <h3>Prompt <span class="muted small">placeholders: {n} {products} {list}</span></h3>
+    <textarea id="r_prompt"></textarea>
+  </div>
+  <div class="card">
+    <h2>C. Storefront</h2>
+    <div class="row">
+      <label>Trials per model <input type="number" id="f_trials" style="width:90px"></label>
+      <label>Rows <input type="number" id="f_rows" style="width:55px"></label>
+      <label>Columns <input type="number" id="f_cols" style="width:55px"></label>
+      <label>Card title <input type="text" id="f_title" size="14"></label>
+      <label><input type="checkbox" id="f_readback"> Read-back check <span class="tip" data-tip="add_to_cart asks the model to copy every attribute of the product it chose exactly as shown. The tool compares this with the card to count misreadings (the v6 method).">i</span></label>
+      <label>Validation trials <input type="number" id="v_trials" style="width:60px"> <span class="tip" data-tip="Extreme-condition check: one product is best on every attribute with a clear direction. Picks should be 100% that product before the real run.">i</span></label>
+    </div>
+    <h3>System message</h3><textarea id="f_system" style="min-height:40px"></textarea>
+    <h3>Screenshot prompt <span class="muted small">placeholders: {product} {products}</span></h3><textarea id="f_prompt"></textarea>
+    <h3>Text-mode prompt (for non-vision models) <span class="muted small">adds {page}</span></h3><textarea id="f_textPrompt"></textarea>
+    <h3>Re-ask when no product is chosen</h3><textarea id="f_reask" style="min-height:40px"></textarea>
+    <h3>Example page</h3><canvas id="pagePreview" class="preview"></canvas>
+  </div>
+  <div class="card"><h2>Size of the run</h2><div id="callEstimate"></div></div>
+</section>
+
+<section class="page" data-page="run" data-title="5. Run">
+  <div class="card">
+    <h2>Run</h2>
+    <div class="row">
+      <label>Size <select id="runSize"><option value="pilot">Pilot</option><option value="full">Full</option></select></label>
+      <label>Pilot pairs <input type="number" id="pilotPairs" value="20" style="width:70px"></label>
+      <label>Pilot storefront trials <input type="number" id="pilotTrials" value="10" style="width:70px"></label>
+      <span class="tip" data-tip="A pilot uses the first N pairs and trials of the same fixed design, so a later full run simply carries on from where the pilot stopped.">i</span>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="m_conjoint" checked> Conjoint</label>
+      <label><input type="checkbox" id="m_ranking" checked> Ranking</label>
+      <label><input type="checkbox" id="m_storefront" checked> Storefront</label>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn" id="runValidate">1. Run validation check</button>
+      <button class="btn primary" id="runAll">2. Run study</button>
+      <button class="btn" id="pauseRun" disabled>Pause</button>
+      <button class="btn danger" id="clearResults">Clear results…</button>
+    </div>
+    <p class="muted small">Order for each model: conjoint and ranking → the conjoint prediction is fitted and locked (timestamp + SHA-256) → storefront. Results save automatically in this browser; also use Export → project file.</p>
+  </div>
+  <div class="card"><h2>Progress</h2><table id="progress"></table></div>
+  <div class="card"><h2>Log</h2><div id="log"></div></div>
+</section>
+
+<section class="page" data-page="results" data-title="6. Results">
+  <div class="card">
+    <div class="row"><label>Model <select id="resModel"></select></label><label>Condition <select id="resCond"></select></label></div>
+  </div>
+  <div id="resBody"></div>
+</section>
+
+<section class="page" data-page="compare" data-title="7. Compare models">
+  <div id="cmpBody"></div>
+</section>
+
+<section class="page" data-page="export" data-title="8. Export">
+  <div class="card">
+    <h2>Export</h2>
+    <p class="muted small">Every analysis step can be checked: raw answers, the design, the fitted coefficients and SPSS syntax that re-runs the conjoint regression.</p>
+    <div class="row">
+      <button class="btn" data-exp="conjoint">Conjoint answers (CSV, all models)</button>
+      <button class="btn" data-exp="ranking">Ranking answers (CSV)</button>
+      <button class="btn" data-exp="storefront">Storefront choices (CSV)</button>
+      <button class="btn" data-exp="design">Storefront design (CSV)</button>
+      <button class="btn" data-exp="coefs">Conjoint coefficients (CSV)</button>
+      <button class="btn" data-exp="predictions">Locked predictions vs storefront (CSV)</button>
+      <button class="btn" data-exp="compare">Model comparison (CSV)</button>
+      <button class="btn" data-exp="spss">SPSS syntax (.sps)</button>
+    </div>
+    <h3>Project file</h3>
+    <div class="row">
+      <button class="btn primary" data-exp="project">Save project file (.json)</button>
+      <label class="btn">Open project file <input type="file" id="openProject" accept=".json" style="display:none"></label>
+      <button class="btn" data-exp="study">Save study only (.json)</button>
+      <label class="btn">Open study file <input type="file" id="openStudy" accept=".json" style="display:none"></label>
+    </div>
+  </div>
+</section>
+<div class="navbtns" id="navbtns"><button class="btn" id="back">← Back</button><button class="btn primary" id="next">Next →</button></div>
+</main>
+<script>/*CORE*/</script>
+<script>/*PRESET*/</script>
+<script>/*APP*/</script>
+</body>
+</html>

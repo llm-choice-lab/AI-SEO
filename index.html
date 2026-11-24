@@ -1,0 +1,1725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Conjoint Lab</title>
+<style>
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1d1d1b;--muted:#6b6a65;--line:#e3e1da;--accent:#2f5d8a;--accent2:#e8eef5;--good:#2e7d4f;--bad:#b3412f;--warn:#a66a00}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{display:flex;align-items:center;gap:16px;padding:12px 20px;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+header h1{font-size:17px;margin:0;font-weight:650}
+header .ver{color:var(--muted);font-size:12px}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav button{border:0;background:none;padding:7px 11px;border-radius:7px;cursor:pointer;color:var(--muted);font:inherit}
+nav button.on{background:var(--accent2);color:var(--accent);font-weight:600}
+main{max-width:1180px;margin:0 auto;padding:20px}
+section.page{display:none}section.page.on{display:block}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:16px}
+.card h2{font-size:15px;margin:0 0 10px}
+.card h3{font-size:13.5px;margin:14px 0 6px}
+.muted{color:var(--muted)}.small{font-size:12.5px}
+label{display:inline-flex;align-items:center;gap:6px;margin:4px 12px 4px 0}
+input[type=text],input[type=number],input[type=password],select,textarea{font:inherit;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+textarea{width:100%;min-height:110px;font:12.5px/1.45 ui-monospace,Consolas,monospace}
+button.btn{font:inherit;padding:7px 13px;border-radius:7px;border:1px solid var(--line);background:#fff;cursor:pointer}
+button.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+button.btn.danger{color:var(--bad)}
+button.btn:disabled{opacity:.5;cursor:default}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border-bottom:1px solid var(--line);padding:5px 7px;text-align:left;vertical-align:top}
+th{font-weight:600;color:var(--muted);font-size:12px;background:#faf9f6}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+td input[type=text],td input[type=number],td select{width:100%;padding:4px 6px}
+.row{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start}
+.grow{flex:1;min-width:280px}
+.navbtns{display:flex;justify-content:space-between;margin-top:8px}
+.tip{display:inline-block;width:16px;height:16px;border-radius:50%;background:var(--accent2);color:var(--accent);font-size:11px;text-align:center;line-height:16px;cursor:help;font-weight:700;position:relative}
+.tip:hover::after{content:attr(data-tip);position:absolute;left:20px;top:-4px;width:300px;background:#1d1d1b;color:#fff;font-weight:400;padding:8px 10px;border-radius:6px;font-size:12px;line-height:1.4;text-align:left;z-index:20;white-space:normal}
+.bar{height:8px;background:var(--accent2);border-radius:4px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent)}
+.pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:11.5px;background:#eee}
+.pill.good{background:#e3f1e8;color:var(--good)}.pill.bad{background:#f7e4e0;color:var(--bad)}.pill.warn{background:#f8eed9;color:var(--warn)}
+#log{height:180px;overflow:auto;background:#1d1d1b;color:#d7d5cf;font:12px/1.4 ui-monospace,Consolas,monospace;padding:8px;border-radius:7px;white-space:pre-wrap}
+canvas.preview{max-width:100%;border:1px solid var(--line);border-radius:6px}
+.sig{color:var(--good);font-weight:600}
+.notice{background:#fff8e6;border:1px solid #f0dfb0;padding:9px 12px;border-radius:7px;margin:8px 0}
+</style>
+</head>
+<body>
+<header>
+  <h1>LLM Conjoint Lab</h1><span class="ver" id="ver"></span>
+  <nav id="nav"></nav>
+</header>
+<main>
+<section class="page" data-page="setup" data-title="1. Keys & models">
+  <div class="card">
+    <h2>API keys <span class="tip" data-tip="Keys stay in this browser on this computer. They are never saved into project files or exports. Tick 'Remember keys' to keep them between sessions.">i</span></h2>
+    <div class="row">
+      <label>OpenRouter <input type="password" id="key_openrouter" size="34" placeholder="sk-or-..."></label>
+      <label>OpenAI <input type="password" id="key_openai" size="26" placeholder="optional"></label>
+      <label>Anthropic <input type="password" id="key_anthropic" size="26" placeholder="optional"></label>
+      <label>Google <input type="password" id="key_google" size="26" placeholder="optional"></label>
+    </div>
+    <label><input type="checkbox" id="rememberKeys"> Remember keys in this browser</label>
+    <label>Parallel requests <input type="number" id="concurrency" min="1" max="32" value="6" style="width:60px"> <span class="tip" data-tip="How many API calls run at the same time, across all models. Lower it if you hit rate limits (HTTP 429).">i</span></label>
+  </div>
+  <div class="card">
+    <h2>Models <span class="tip" data-tip="Every model gets exactly the same conjoint pairs, ranking orders and storefront pages. 'sim' models are simulated (no API calls) for testing the pipeline.">i</span></h2>
+    <p class="muted small">Plan: 3 providers × 3 tiers. Use <b>Fetch OpenRouter list</b> to pick current model IDs. Vision models get screenshots; others get the same page as text.</p>
+    <table id="modelTable"></table>
+    <div class="row" style="margin-top:10px">
+      <button class="btn" id="addModel">+ Add model</button>
+      <button class="btn" id="fetchModels">Fetch OpenRouter list</button>
+      <button class="btn" id="addSims">Add 3 simulated models (testing)</button>
+      <span id="fetchStatus" class="muted small"></span>
+    </div>
+    <datalist id="orModels"></datalist>
+  </div>
+</section>
+
+<section class="page" data-page="study" data-title="2. Study">
+  <div class="card">
+    <h2>Study</h2>
+    <div class="row">
+      <label>Saved studies <select id="studyPick"></select></label>
+      <button class="btn" id="studyNew">New blank study</button>
+      <button class="btn" id="studyDup">Duplicate</button>
+      <button class="btn" id="studyLoadPreset">Load Study 3 preset (e-readers)</button>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <label>Name <input type="text" id="s_name" size="46"></label>
+      <label>Product (singular) <input type="text" id="s_category" size="14"></label>
+      <label>Plural <input type="text" id="s_plural" size="14"></label>
+      <label>Seed <input type="number" id="s_seed" style="width:110px"> <span class="tip" data-tip="The random seed fixes the conjoint pairs and storefront layouts. Same seed = same design, so runs can be repeated exactly.">i</span></label>
+    </div>
+    <div id="lockNote"></div>
+  </div>
+  <div class="card">
+    <h2>Attributes <span class="tip" data-tip="Continuous attributes enter the regression as numbers (Product 1 minus Product 2). Categorical attributes use the first level as the reference. 'Better' is only used to build the extreme-condition validation check.">i</span></h2>
+    <table id="attrTable"></table>
+    <button class="btn" id="addAttr" style="margin-top:8px">+ Add attribute</button>
+  </div>
+  <div class="card">
+    <h2>Conditions <span class="tip" data-tip="Run the same study under different settings for within-model comparisons. Leave temperature blank to use each model's default (some reasoning models reject a temperature).">i</span></h2>
+    <table id="condTable"></table>
+    <button class="btn" id="addCond" style="margin-top:8px">+ Add condition</button>
+  </div>
+</section>
+
+<section class="page" data-page="products" data-title="3. Products">
+  <div class="card">
+    <h2>Storefront products <span class="tip" data-tip="These products appear on every storefront page (positions shuffled each trial) and in the ranking task. The conjoint utilities are applied to them to predict choice shares. The name is for your records; cards show the generic card title.">i</span></h2>
+    <div style="overflow:auto"><table id="prodTable"></table></div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn" id="addProd">+ Add product</button>
+    </div>
+    <h3>Paste rows</h3>
+    <p class="muted small">Paste from a spreadsheet: a header row with <code>id, name, rating, reviews</code> and the attribute names, then one product per row (tab or comma separated). Rows replace the current list.</p>
+    <textarea id="pasteRows" placeholder="id	name	rating	reviews	Price	Battery life	..."></textarea>
+    <button class="btn" id="applyPaste">Replace products with pasted rows</button>
+  </div>
+  <div class="card">
+    <h2>Card preview</h2>
+    <canvas id="cardPreview" class="preview"></canvas>
+  </div>
+</section>
+
+<section class="page" data-page="design" data-title="4. Prompts & design">
+  <div class="card">
+    <h2>A. Conjoint</h2>
+    <div class="row">
+      <label>Pairs <input type="number" id="c_pairs" style="width:90px"></label>
+      <label><input type="checkbox" id="c_counter"> Counterbalance (show each pair both ways) <span class="tip" data-tip="Each pair is asked A-B and B-A. Position bias cancels out of the attribute effects and is estimated by the constant. Doubles the calls.">i</span></label>
+    </div>
+    <h3>Prompt <span class="muted small">placeholders: {product} {products} {first} {second}</span></h3>
+    <textarea id="c_prompt"></textarea>
+    <h3>Re-ask when the answer is unclear <span class="tip" data-tip="An unclear answer is re-asked once with this follow-up. If it is still unclear it is recorded as missing, never defaulted to 'first'.">i</span></h3>
+    <textarea id="c_reask" style="min-height:50px"></textarea>
+    <h3>Example</h3><pre id="c_example" class="small" style="white-space:pre-wrap;background:#faf9f6;padding:10px;border-radius:6px"></pre>
+  </div>
+  <div class="card">
+    <h2>B. Ranking (Rotman bot) <span class="tip" data-tip="The model ranks all storefront products in one go, several times with the list shuffled each time. The average rank is compared with the ranking its own conjoint predicts (Spearman rho), as in Study 2's Rotman-bot validation.">i</span></h2>
+    <label><input type="checkbox" id="r_enabled"> Include</label>
+    <label>Repeats <input type="number" id="r_repeats" style="width:70px"></label>
+    <h3>Prompt <span class="muted small">placeholders: {n} {products} {list}</span></h3>
+    <textarea id="r_prompt"></textarea>
+  </div>
+  <div class="card">
+    <h2>C. Storefront</h2>
+    <div class="row">
+      <label>Trials per model <input type="number" id="f_trials" style="width:90px"></label>
+      <label>Rows <input type="number" id="f_rows" style="width:55px"></label>
+      <label>Columns <input type="number" id="f_cols" style="width:55px"></label>
+      <label>Card title <input type="text" id="f_title" size="14"></label>
+      <label><input type="checkbox" id="f_readback"> Read-back check <span class="tip" data-tip="add_to_cart asks the model to copy every attribute of the product it chose exactly as shown. The tool compares this with the card to count misreadings (the v6 method).">i</span></label>
+      <label>Validation trials <input type="number" id="v_trials" style="width:60px"> <span class="tip" data-tip="Extreme-condition check: one product is best on every attribute with a clear direction. Picks should be 100% that product before the real run.">i</span></label>
+    </div>
+    <h3>System message</h3><textarea id="f_system" style="min-height:40px"></textarea>
+    <h3>Screenshot prompt <span class="muted small">placeholders: {product} {products}</span></h3><textarea id="f_prompt"></textarea>
+    <h3>Text-mode prompt (for non-vision models) <span class="muted small">adds {page}</span></h3><textarea id="f_textPrompt"></textarea>
+    <h3>Re-ask when no product is chosen</h3><textarea id="f_reask" style="min-height:40px"></textarea>
+    <h3>Example page</h3><canvas id="pagePreview" class="preview"></canvas>
+  </div>
+  <div class="card"><h2>Size of the run</h2><div id="callEstimate"></div></div>
+</section>
+
+<section class="page" data-page="run" data-title="5. Run">
+  <div class="card">
+    <h2>Run</h2>
+    <div class="row">
+      <label>Size <select id="runSize"><option value="pilot">Pilot</option><option value="full">Full</option></select></label>
+      <label>Pilot pairs <input type="number" id="pilotPairs" value="20" style="width:70px"></label>
+      <label>Pilot storefront trials <input type="number" id="pilotTrials" value="10" style="width:70px"></label>
+      <span class="tip" data-tip="A pilot uses the first N pairs and trials of the same fixed design, so a later full run simply carries on from where the pilot stopped.">i</span>
+    </div>
+    <div class="row">
+      <label><input type="checkbox" id="m_conjoint" checked> Conjoint</label>
+      <label><input type="checkbox" id="m_ranking" checked> Ranking</label>
+      <label><input type="checkbox" id="m_storefront" checked> Storefront</label>
+    </div>
+    <div class="row" style="margin-top:6px">
+      <button class="btn" id="runValidate">1. Run validation check</button>
+      <button class="btn primary" id="runAll">2. Run study</button>
+      <button class="btn" id="pauseRun" disabled>Pause</button>
+      <button class="btn danger" id="clearResults">Clear results…</button>
+    </div>
+    <p class="muted small">Order for each model: conjoint and ranking → the conjoint prediction is fitted and locked (timestamp + SHA-256) → storefront. Results save automatically in this browser; also use Export → project file.</p>
+  </div>
+  <div class="card"><h2>Progress</h2><table id="progress"></table></div>
+  <div class="card"><h2>Log</h2><div id="log"></div></div>
+</section>
+
+<section class="page" data-page="results" data-title="6. Results">
+  <div class="card">
+    <div class="row"><label>Model <select id="resModel"></select></label><label>Condition <select id="resCond"></select></label></div>
+  </div>
+  <div id="resBody"></div>
+</section>
+
+<section class="page" data-page="compare" data-title="7. Compare models">
+  <div id="cmpBody"></div>
+</section>
+
+<section class="page" data-page="export" data-title="8. Export">
+  <div class="card">
+    <h2>Export</h2>
+    <p class="muted small">Every analysis step can be checked: raw answers, the design, the fitted coefficients and SPSS syntax that re-runs the conjoint regression.</p>
+    <div class="row">
+      <button class="btn" data-exp="conjoint">Conjoint answers (CSV, all models)</button>
+      <button class="btn" data-exp="ranking">Ranking answers (CSV)</button>
+      <button class="btn" data-exp="storefront">Storefront choices (CSV)</button>
+      <button class="btn" data-exp="design">Storefront design (CSV)</button>
+      <button class="btn" data-exp="coefs">Conjoint coefficients (CSV)</button>
+      <button class="btn" data-exp="predictions">Locked predictions vs storefront (CSV)</button>
+      <button class="btn" data-exp="compare">Model comparison (CSV)</button>
+      <button class="btn" data-exp="spss">SPSS syntax (.sps)</button>
+    </div>
+    <h3>Project file</h3>
+    <div class="row">
+      <button class="btn primary" data-exp="project">Save project file (.json)</button>
+      <label class="btn">Open project file <input type="file" id="openProject" accept=".json" style="display:none"></label>
+      <button class="btn" data-exp="study">Save study only (.json)</button>
+      <label class="btn">Open study file <input type="file" id="openStudy" accept=".json" style="display:none"></label>
+    </div>
+  </div>
+</section>
+<div class="navbtns" id="navbtns"><button class="btn" id="back">← Back</button><button class="btn primary" id="next">Next →</button></div>
+</main>
+<script>/* LLM Conjoint Lab — core logic (no DOM).
+ * Design generation, prompt building, answer parsing, statistics,
+ * predictions and exports. Loaded by index.html and by the Node tests.
+ */
+(function (root) {
+'use strict';
+
+// ---------- Seeded random numbers (mulberry32) ----------
+function rng(seed) {
+  let a = (seed >>> 0) || 1;
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function shuffle(arr, r) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function pick(arr, r) { return arr[Math.floor(r() * arr.length)]; }
+
+// ---------- Attribute display ----------
+// attribute: {key, name, type:'continuous'|'categorical', levels:[...], format:'$ {v}' }
+function fmtValue(attr, v) {
+  if (v === null || v === undefined || v === '') return '';
+  if (attr.type === 'categorical') return String(v);
+  const f = attr.format || '{v}';
+  let s = String(v);
+  if (attr.decimals !== undefined && attr.decimals !== null && attr.decimals !== '') s = Number(v).toFixed(Number(attr.decimals));
+  return f.replace('{v}', s);
+}
+
+// ---------- Conjoint design ----------
+// Same pairs for every model. With counterbalancing, every pair also appears reversed.
+function makeConjointDesign(study) {
+  const c = study.conjoint;
+  const r = rng(Number(study.seed) || 1);
+  const attrs = study.attributes;
+  const base = [];
+  let guard = 0;
+  while (base.length < c.pairs && guard < c.pairs * 50) {
+    guard++;
+    const a = {}, b = {};
+    attrs.forEach(at => { a[at.key] = pick(at.levels, r); b[at.key] = pick(at.levels, r); });
+    if (attrs.every(at => String(a[at.key]) === String(b[at.key]))) continue; // identical profiles
+    base.push({ pair: base.length + 1, p1: a, p2: b });
+  }
+  const tasks = [];
+  base.forEach(p => {
+    tasks.push({ id: 'C' + p.pair + 'a', pair: p.pair, order: 'AB', p1: p.p1, p2: p.p2 });
+    if (c.counterbalance) tasks.push({ id: 'C' + p.pair + 'b', pair: p.pair, order: 'BA', p1: p.p2, p2: p.p1 });
+  });
+  return tasks;
+}
+
+function describeProfile(study, prof) {
+  return study.attributes.map(at => at.name + ': ' + fmtValue(at, prof[at.key])).join('; ');
+}
+
+function fill(tpl, vars) {
+  return String(tpl).replace(/\{(\w+)\}/g, (m, k) => (vars[k] !== undefined ? vars[k] : m));
+}
+
+function conjointPrompt(study, task) {
+  return fill(study.conjoint.prompt, {
+    product: study.category,
+    products: study.categoryPlural || (study.category + 's'),
+    first: describeProfile(study, task.p1),
+    second: describeProfile(study, task.p2)
+  });
+}
+
+// Returns 'first' | 'second' | null
+function parseFirstSecond(text) {
+  if (!text) return null;
+  const t = String(text);
+  let m = t.match(/ANSWER\s*[:\-]?\s*\**\s*\[?\s*(first|second)\b/i);
+  if (m) return m[1].toLowerCase();
+  const lead = t.trim().replace(/^[\s*"'`#>\-]+/, '').match(/^(first|second)\b/i);
+  if (lead) return lead[1].toLowerCase();
+  const hasF = /\bfirst\b/i.test(t), hasS = /\bsecond\b/i.test(t);
+  if (hasF && !hasS) return 'first';
+  if (hasS && !hasF) return 'second';
+  return null;
+}
+
+// ---------- Ranking (validation) ----------
+function rankingPrompt(study, order) {
+  const lines = order.map(p => p.id + ' — ' + describeProfile(study, p.attrs) + (p.price !== undefined && !study.attributes.some(a => a.key === 'price') ? '; Price: $' + p.price : ''));
+  return fill(study.ranking.prompt, {
+    product: study.category, products: study.categoryPlural || (study.category + 's'),
+    n: order.length, list: lines.join('\n')
+  });
+}
+function parseRanking(text, ids) {
+  if (!text) return null;
+  const found = [];
+  const re = /\b([A-Z]{1,3}\d{1,3})\b/g; let m;
+  const want = new Set(ids);
+  let src = String(text);
+  const ans = src.match(/RANKING\s*:\s*([\s\S]*)/i);
+  if (ans) src = ans[1];
+  while ((m = re.exec(src))) { if (want.has(m[1]) && !found.includes(m[1])) found.push(m[1]); }
+  return found.length === ids.length ? found : null;
+}
+
+// ---------- Storefront design ----------
+function makeStorefrontDesign(study, nTrials, seedOffset) {
+  const s = study.storefront;
+  const r = rng((Number(study.seed) || 1) * 7919 + (seedOffset || 0));
+  const ids = study.products.map(p => p.id);
+  const slots = s.rows * s.cols;
+  const trials = [];
+  for (let t = 1; t <= nTrials; t++) {
+    const perm = shuffle(ids, r).slice(0, slots);
+    trials.push({ trial: t, layout: perm.map((id, i) => ({ id, slot: i + 1, row: Math.floor(i / s.cols) + 1, col: (i % s.cols) + 1 })) });
+  }
+  return trials;
+}
+
+function storefrontPrompt(study) {
+  return fill(study.storefront.prompt, { product: study.category, products: study.categoryPlural || (study.category + 's') });
+}
+
+function readbackKey(name) { return name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
+
+function addToCartTool(study) {
+  const props = { product_id: { type: 'string', enum: study.products.map(p => p.id), description: 'Label of the product to add to the cart.' } };
+  const req = ['product_id'];
+  if (study.storefront.readback) {
+    props.price = { type: 'number', description: 'Price shown for this product.' };
+    props.rating = { type: 'number', description: 'Customer rating shown for this product.' };
+    req.push('price', 'rating');
+    study.attributes.filter(a => a.key !== 'price').forEach(a => {
+      const k = readbackKey(a.name);
+      props[k] = { type: 'string', description: '"' + a.name + '" shown for this product, exactly as written on its card.' };
+      req.push(k);
+    });
+  }
+  return { name: 'add_to_cart', description: "Add the selected item to cart. This is a special tool that is only used when you've selected a product item.", parameters: { type: 'object', properties: props, required: req, additionalProperties: false } };
+}
+
+function cardLines(study, p) {
+  return study.attributes.filter(a => a.key !== 'price').map(a => ({ label: a.name, value: fmtValue(a, p.attrs[a.key]) }));
+}
+function productPrice(study, p) {
+  return p.attrs.price !== undefined ? Number(p.attrs.price) : Number(p.price);
+}
+function storefrontText(study, layout) {
+  const byId = Object.fromEntries(study.products.map(p => [p.id, p]));
+  return layout.map(L => {
+    const p = byId[L.id];
+    return 'Row ' + L.row + ', column ' + L.col + ' — ' + p.id + ': ' + (study.storefront.cardTitle || p.title || study.category) +
+      ' | $' + productPrice(study, p).toFixed(2) + ' | ' + Number(p.rating).toFixed(1) + ' stars (' + p.reviews + ' reviews) | ' +
+      cardLines(study, p).map(l => l.label + ': ' + l.value).join(' | ');
+  }).join('\n');
+}
+
+function norm(s) { return String(s === undefined || s === null ? '' : s).toLowerCase().replace(/[\s"'$,]+/g, '').replace(/inches|inch|in\.?$/,'in'); }
+function sameValue(a, b) {
+  const na = parseFloat(String(a).replace(/[^0-9.\-]/g, '')), nb = parseFloat(String(b).replace(/[^0-9.\-]/g, ''));
+  if (norm(a) === norm(b)) return true;
+  // numeric-only strings: compare numbers
+  if (!isNaN(na) && !isNaN(nb) && /^[\s$]*[0-9.,]+[\s]*$/.test(String(a)) && na === nb) return true;
+  return false;
+}
+// Compare what the model read back with what its chosen card showed.
+function checkReadback(study, args) {
+  const p = study.products.find(x => x.id === args.product_id);
+  if (!p || !study.storefront.readback) return { misread: [], n: 0 };
+  const mis = [];
+  if (args.price !== undefined && Math.abs(Number(args.price) - productPrice(study, p)) > 0.005) mis.push('price');
+  if (args.rating !== undefined && Math.abs(Number(args.rating) - Number(p.rating)) > 0.05) mis.push('rating');
+  study.attributes.filter(a => a.key !== 'price').forEach(a => {
+    const k = readbackKey(a.name);
+    if (args[k] !== undefined && !sameValue(args[k], fmtValue(a, p.attrs[a.key]))) mis.push(a.name);
+  });
+  return { misread: mis, n: mis.length };
+}
+
+function parseToolArgsFromText(text, ids) {
+  if (!text) return null;
+  const j = String(text).match(/\{[\s\S]*"product_id"[\s\S]*?\}/);
+  if (j) { try { return JSON.parse(j[0]); } catch (e) { /* fall through */ } }
+  const m = String(text).match(/product_id\W+([A-Z]{1,3}\d{1,3})/);
+  if (m && ids.includes(m[1])) return { product_id: m[1] };
+  return null;
+}
+
+// ---------- Linear algebra ----------
+function zeros(n, m) { return Array.from({ length: n }, () => new Array(m).fill(0)); }
+function invert(A) {
+  const n = A.length, M = A.map((row, i) => row.concat(Array.from({ length: n }, (_, j) => (i === j ? 1 : 0))));
+  for (let c = 0; c < n; c++) {
+    let p = c; for (let r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+    if (Math.abs(M[p][c]) < 1e-12) return null;
+    [M[c], M[p]] = [M[p], M[c]];
+    const d = M[c][c]; for (let j = 0; j < 2 * n; j++) M[c][j] /= d;
+    for (let r = 0; r < n; r++) if (r !== c) { const f = M[r][c]; if (f) for (let j = 0; j < 2 * n; j++) M[r][j] -= f * M[c][j]; }
+  }
+  return M.map(row => row.slice(n));
+}
+function normCdf(x) { // Abramowitz-Stegun 7.1.26 via erf
+  const t = 1 / (1 + 0.3275911 * Math.abs(x) / Math.SQRT2);
+  const y = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x / 2);
+  return x >= 0 ? (1 + y) / 2 : (1 - y) / 2;
+}
+function pTwo(z) { return Math.max(0, Math.min(1, 2 * (1 - normCdf(Math.abs(z))))); }
+
+// ---------- Conjoint regression ----------
+// Columns: continuous attributes enter as P1 − P2 in raw units; categorical attributes as
+// differences of dummies for each non-reference level (reference = first level).
+function conjointColumns(study) {
+  const cols = [];
+  study.attributes.forEach(a => {
+    if (a.type === 'categorical') a.levels.slice(1).forEach(l => cols.push({ attr: a.key, level: l, name: a.name + ' = ' + l, spss: spssName(a.name + '_' + l) }));
+    else cols.push({ attr: a.key, level: null, name: a.name, spss: spssName(a.name) });
+  });
+  return cols;
+}
+function spssName(s) { let n = String(s).replace(/[^A-Za-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, ''); if (!/^[A-Za-z]/.test(n)) n = 'v' + n; return n.slice(0, 60); }
+function colValue(col, prof) {
+  if (col.level === null) return Number(prof[col.attr]);
+  return String(prof[col.attr]) === String(col.level) ? 1 : 0;
+}
+
+function logit(X, y) { // X includes intercept column; Newton-Raphson
+  const n = X.length, k = X[0].length;
+  let b = new Array(k).fill(0), ll = -Infinity, it = 0, converged = false;
+  for (it = 0; it < 100; it++) {
+    const g = new Array(k).fill(0), H = zeros(k, k);
+    let newll = 0;
+    for (let i = 0; i < n; i++) {
+      let eta = 0; for (let j = 0; j < k; j++) eta += X[i][j] * b[j];
+      const p = 1 / (1 + Math.exp(-eta));
+      newll += y[i] ? Math.log(Math.max(p, 1e-300)) : Math.log(Math.max(1 - p, 1e-300));
+      const w = p * (1 - p);
+      for (let j = 0; j < k; j++) { g[j] += (y[i] - p) * X[i][j]; for (let l = 0; l <= j; l++) H[j][l] += w * X[i][j] * X[i][l]; }
+    }
+    for (let j = 0; j < k; j++) for (let l = 0; l < j; l++) H[l][j] = H[j][l];
+    const Hi = invert(H); if (!Hi) return { error: 'Singular matrix: an attribute may not vary, or levels are perfectly confounded.' };
+    const step = Hi.map(row => row.reduce((s, v, j) => s + v * g[j], 0));
+    b = b.map((v, j) => v + step[j]);
+    if (Math.abs(newll - ll) < 1e-10) { ll = newll; converged = true; break; }
+    ll = newll;
+  }
+  // final covariance
+  const H = zeros(k, k);
+  for (let i = 0; i < n; i++) {
+    let eta = 0; for (let j = 0; j < k; j++) eta += X[i][j] * b[j];
+    const p = 1 / (1 + Math.exp(-eta)), w = p * (1 - p);
+    for (let j = 0; j < k; j++) for (let l = 0; l < k; l++) H[j][l] += w * X[i][j] * X[i][l];
+  }
+  const V = invert(H);
+  const se = V ? V.map((r, j) => Math.sqrt(r[j])) : b.map(() => NaN);
+  return { b, se, z: b.map((v, j) => v / se[j]), p: b.map((v, j) => pTwo(v / se[j])), ll, n, iterations: it + 1, converged };
+}
+
+function fitConjoint(study, rows) {
+  const cols = conjointColumns(study);
+  const use = rows.filter(r => r.choice === 'first' || r.choice === 'second');
+  if (use.length < cols.length + 5) return { error: 'Not enough valid answers yet (' + use.length + ').' };
+  const X = use.map(r => [1].concat(cols.map(c => colValue(c, r.p1) - colValue(c, r.p2))));
+  const y = use.map(r => (r.choice === 'first' ? 1 : 0));
+  const fit = logit(X, y);
+  if (fit.error) return fit;
+  const terms = [{ name: 'Constant (first-position bias)', spss: 'Constant', b: fit.b[0], se: fit.se[0], z: fit.z[0], p: fit.p[0] }]
+    .concat(cols.map((c, j) => ({ name: c.name, spss: c.spss, attr: c.attr, level: c.level, b: fit.b[j + 1], se: fit.se[j + 1], z: fit.z[j + 1], p: fit.p[j + 1] })));
+  // utilities and relative importance (utility-range method)
+  const util = {};
+  study.attributes.forEach(a => {
+    if (a.type === 'categorical') {
+      const u = {}; u[a.levels[0]] = 0;
+      a.levels.slice(1).forEach(l => { u[l] = terms.find(t => t.attr === a.key && t.level === l).b; });
+      util[a.key] = u;
+    } else util[a.key] = terms.find(t => t.attr === a.key && t.level === null).b;
+  });
+  const ranges = {};
+  study.attributes.forEach(a => {
+    if (a.type === 'categorical') { const v = Object.values(util[a.key]); ranges[a.key] = Math.max(...v) - Math.min(...v); }
+    else { const L = a.levels.map(Number); ranges[a.key] = Math.abs(util[a.key]) * (Math.max(...L) - Math.min(...L)); }
+  });
+  const tot = Object.values(ranges).reduce((s, v) => s + v, 0) || 1;
+  const importance = Object.fromEntries(Object.entries(ranges).map(([k, v]) => [k, v / tot]));
+  const firstShare = y.reduce((s, v) => s + v, 0) / y.length;
+  const nullLL = y.length * (firstShare * Math.log(firstShare) + (1 - firstShare) * Math.log(1 - firstShare));
+  return { terms, util, importance, n: use.length, nMissing: rows.length - use.length, firstShare,
+    firstShareP: binomP(y.reduce((s, v) => s + v, 0), y.length), ll: fit.ll, nagelkerke: nagelkerke(fit.ll, nullLL, y.length), converged: fit.converged };
+}
+function nagelkerke(ll, ll0, n) { const cs = 1 - Math.exp(2 * (ll0 - ll) / n); return cs / (1 - Math.exp(2 * ll0 / n)); }
+function binomP(k, n) { const z = (k - n / 2) / Math.sqrt(n / 4); return pTwo(z); }
+
+function productUtility(study, util, attrs) {
+  let u = 0;
+  study.attributes.forEach(a => {
+    if (a.type === 'categorical') u += util[a.key][attrs[a.key]] || 0;
+    else u += util[a.key] * Number(attrs[a.key]);
+  });
+  return u;
+}
+// Predicted storefront shares: multinomial logit on conjoint utilities (constant excluded).
+function predictShares(study, util) {
+  const us = study.products.map(p => productUtility(study, util, p.attrs));
+  const mx = Math.max(...us), ex = us.map(u => Math.exp(u - mx)), s = ex.reduce((a, b) => a + b, 0);
+  const out = study.products.map((p, i) => ({ id: p.id, utility: us[i], share: ex[i] / s }));
+  const ranks = rankOf(out.map(o => -o.utility));
+  out.forEach((o, i) => { o.rank = ranks[i]; });
+  return out;
+}
+
+function rankOf(vals) { // average ranks, 1 = smallest value
+  const idx = vals.map((v, i) => [v, i]).sort((a, b) => a[0] - b[0]);
+  const r = new Array(vals.length);
+  for (let i = 0; i < idx.length;) {
+    let j = i; while (j + 1 < idx.length && idx[j + 1][0] === idx[i][0]) j++;
+    const avg = (i + j) / 2 + 1; for (let k = i; k <= j; k++) r[idx[k][1]] = avg; i = j + 1;
+  }
+  return r;
+}
+function pearson(a, b) {
+  const n = a.length, ma = a.reduce((s, v) => s + v, 0) / n, mb = b.reduce((s, v) => s + v, 0) / n;
+  let num = 0, da = 0, db = 0;
+  for (let i = 0; i < n; i++) { num += (a[i] - ma) * (b[i] - mb); da += (a[i] - ma) ** 2; db += (b[i] - mb) ** 2; }
+  return num / Math.sqrt(da * db);
+}
+function spearman(a, b) { return pearson(rankOf(a), rankOf(b)); }
+
+function wilson(k, n) {
+  if (!n) return [0, 0];
+  const z = 1.959964, p = k / n, d = 1 + z * z / n;
+  const c = (p + z * z / (2 * n)) / d, h = z * Math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d;
+  return [Math.max(0, c - h), Math.min(1, c + h)];
+}
+
+// ---------- Storefront analysis ----------
+function storefrontSummary(study, rows) {
+  const valid = rows.filter(r => r.chosen);
+  const n = valid.length;
+  const shares = study.products.map(p => {
+    const k = valid.filter(r => r.chosen === p.id).length;
+    const ci = wilson(k, n);
+    return { id: p.id, k, share: n ? k / n : 0, lo: ci[0], hi: ci[1] };
+  });
+  const mis = valid.filter(r => r.nMisread > 0).length;
+  const correct = valid.filter(r => r.nMisread === 0);
+  const sharesCorrect = study.products.map(p => { const k = correct.filter(r => r.chosen === p.id).length; return { id: p.id, k, share: correct.length ? k / correct.length : 0 }; });
+  return { n, nInvalid: rows.length - n, shares, sharesCorrect, misreadRate: n ? mis / n : 0, nCorrect: correct.length };
+}
+
+// Conditional logit with product fixed effects + row + column effects (first product, row 1, col 1 = reference).
+function clogit(study, rows, designByTrial) {
+  const ids = study.products.map(p => p.id);
+  const s = study.storefront;
+  const vars = ids.slice(1).map(id => 'fe_' + id)
+    .concat(Array.from({ length: s.rows - 1 }, (_, i) => 'row_' + (i + 2)))
+    .concat(Array.from({ length: s.cols - 1 }, (_, i) => 'col_' + (i + 2)));
+  const sets = [];
+  rows.filter(r => r.chosen).forEach(r => {
+    const lay = designByTrial[r.trial]; if (!lay) return;
+    sets.push({ chosen: r.chosen, alts: lay.map(L => {
+      const x = new Array(vars.length).fill(0);
+      const fi = ids.indexOf(L.id); if (fi > 0) x[fi - 1] = 1;
+      if (L.row > 1) x[ids.length - 1 + (L.row - 2)] = 1;
+      if (L.col > 1) x[ids.length - 1 + (s.rows - 1) + (L.col - 2)] = 1;
+      return { id: L.id, x };
+    }) });
+  });
+  if (sets.length < 10) return { error: 'Not enough storefront choices yet.' };
+  // drop fixed effects for products never chosen (they diverge); report them separately
+  const chosenIds = new Set(sets.map(st => st.chosen));
+  const keep = vars.map((v, j) => !(v.startsWith('fe_') && !chosenIds.has(v.slice(3))));
+  const k = keep.filter(Boolean).length, kv = vars.filter((v, j) => keep[j]);
+  const red = sets.map(st => ({ chosen: st.chosen, alts: st.alts.filter(a => chosenIds.has(a.id) || true).map(a => ({ id: a.id, never: !chosenIds.has(a.id), x: a.x.filter((v, j) => keep[j]) })) }));
+  let b = new Array(k).fill(0), ll = -Infinity, converged = false;
+  for (let it = 0; it < 100; it++) {
+    const g = new Array(k).fill(0), H = zeros(k, k); let newll = 0;
+    red.forEach(st => {
+      const alts = st.alts.filter(a => !a.never);
+      const eta = alts.map(a => a.x.reduce((s2, v, j) => s2 + v * b[j], 0));
+      const mx = Math.max(...eta), ex = eta.map(e => Math.exp(e - mx)), S = ex.reduce((x, y) => x + y, 0);
+      const pr = ex.map(e => e / S);
+      const ci = alts.findIndex(a => a.id === st.chosen);
+      newll += Math.log(pr[ci]);
+      const xbar = new Array(k).fill(0);
+      alts.forEach((a, i) => a.x.forEach((v, j) => { xbar[j] += pr[i] * v; }));
+      alts[ci].x.forEach((v, j) => { g[j] += v - xbar[j]; });
+      alts.forEach((a, i) => { for (let j = 0; j < k; j++) for (let l = 0; l < k; l++) H[j][l] += pr[i] * (a.x[j] - xbar[j]) * (a.x[l] - xbar[l]); });
+    });
+    const Hi = invert(H); if (!Hi) return { error: 'Storefront model could not be estimated (singular).' };
+    b = b.map((v, j) => v + Hi[j].reduce((s2, h, l) => s2 + h * g[l], 0));
+    if (Math.abs(newll - ll) < 1e-10) { ll = newll; converged = true; break; }
+    ll = newll;
+    if (it === 99) { const Hf = invert(H); }
+  }
+  // covariance at the solution
+  const H = zeros(k, k);
+  red.forEach(st => {
+    const alts = st.alts.filter(a => !a.never);
+    const eta = alts.map(a => a.x.reduce((s2, v, j) => s2 + v * b[j], 0));
+    const mx = Math.max(...eta), ex = eta.map(e => Math.exp(e - mx)), S = ex.reduce((x, y) => x + y, 0), pr = ex.map(e => e / S);
+    const xbar = new Array(k).fill(0); alts.forEach((a, i) => a.x.forEach((v, j) => { xbar[j] += pr[i] * v; }));
+    alts.forEach((a, i) => { for (let j = 0; j < k; j++) for (let l = 0; l < k; l++) H[j][l] += pr[i] * (a.x[j] - xbar[j]) * (a.x[l] - xbar[l]); });
+  });
+  const V = invert(H);
+  const terms = kv.map((v, j) => { const se = V ? Math.sqrt(V[j][j]) : NaN; return { term: v, b: b[j], se, z: b[j] / se, p: pTwo(b[j] / se) }; });
+  return { terms, ll, n: sets.length, converged, neverChosen: ids.filter(id => !chosenIds.has(id)), reference: ids[0] };
+}
+
+// ---------- Across models: random-effects pooling (DerSimonian–Laird) ----------
+function poolRE(est) { // est: [{b, se}]
+  const e = est.filter(x => isFinite(x.b) && isFinite(x.se) && x.se > 0);
+  const k = e.length; if (k < 2) return null;
+  const w = e.map(x => 1 / (x.se * x.se)), sw = w.reduce((a, b) => a + b, 0);
+  const bf = e.reduce((s, x, i) => s + w[i] * x.b, 0) / sw;
+  const Q = e.reduce((s, x, i) => s + w[i] * (x.b - bf) ** 2, 0);
+  const C = sw - w.reduce((s, v) => s + v * v, 0) / sw;
+  const tau2 = Math.max(0, (Q - (k - 1)) / C);
+  const ws = e.map(x => 1 / (x.se * x.se + tau2)), sws = ws.reduce((a, b) => a + b, 0);
+  const b = e.reduce((s, x, i) => s + ws[i] * x.b, 0) / sws, se = Math.sqrt(1 / sws);
+  const I2 = Q > 0 ? Math.max(0, (Q - (k - 1)) / Q) : 0;
+  return { b, se, z: b / se, p: pTwo(b / se), tau2, Q, I2, k };
+}
+
+// ---------- Exports ----------
+function csvCell(v) { if (v === null || v === undefined) return ''; const s = typeof v === 'object' ? JSON.stringify(v) : String(v); return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+function toCSV(rows, cols) { return [cols.join(',')].concat(rows.map(r => cols.map(c => csvCell(r[c])).join(','))).join('\n'); }
+
+function conjointLong(study, modelLabel, condition, rows) {
+  const out = [];
+  rows.forEach(r => {
+    const base = { model: modelLabel, condition, task_id: r.id, pair: r.pair, order: r.order, choice: r.choice || '', chose_first: r.choice ? (r.choice === 'first' ? 1 : 0) : '', missing: r.choice ? 0 : 1, reasked: r.reasked ? 1 : 0, model_returned: r.modelReturned || '', response: r.text || '' };
+    study.attributes.forEach(a => { base['P1_' + spssName(a.name)] = r.p1[a.key]; base['P2_' + spssName(a.name)] = r.p2[a.key]; });
+    out.push(base);
+  });
+  return out;
+}
+
+function spssSyntax(study, modelLabel) {
+  const cols = conjointColumns(study);
+  const L = [];
+  L.push('* LLM Conjoint Lab: conjoint analysis for ' + modelLabel + '.');
+  L.push('* Open the conjoint CSV for this model first (File > Import Data > CSV).');
+  L.push('* DV: chose_first (1 = chose the first product). Predictors: Product 1 minus Product 2.');
+  L.push('* Missing answers (missing = 1) are excluded.');
+  L.push('SELECT IF (missing = 0).');
+  study.attributes.forEach(a => {
+    const n = spssName(a.name);
+    if (a.type === 'categorical') {
+      a.levels.slice(1).forEach(l => {
+        const d = spssName(a.name + '_' + l);
+        L.push('COMPUTE D_' + d + ' = (P1_' + n + ' = "' + String(l).replace(/"/g, "'") + '") - (P2_' + n + ' = "' + String(l).replace(/"/g, "'") + '").');
+      });
+    } else L.push('COMPUTE D_' + n + ' = P1_' + n + ' - P2_' + n + '.');
+  });
+  L.push('EXECUTE.');
+  L.push('LOGISTIC REGRESSION VARIABLES chose_first');
+  L.push('  /METHOD=ENTER ' + cols.map(c => 'D_' + c.spss).join(' '));
+  L.push('  /PRINT=CI(95)');
+  L.push('  /CRITERIA=PIN(0.05) POUT(0.10) ITERATE(20) CUT(0.5).');
+  return L.join('\n');
+}
+
+async function sha256(text) {
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch (e) {
+    let h = 5381; for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) | 0;
+    return 'djb2-' + (h >>> 0).toString(16);
+  }
+}
+
+// ---------- Simulated models (for testing without API calls) ----------
+function simTruth(study, name) {
+  const r = rng([...name].reduce((s, c) => s * 31 + c.charCodeAt(0), 7) >>> 0);
+  const util = {};
+  study.attributes.forEach(a => {
+    if (a.type === 'categorical') { const u = {}; a.levels.forEach((l, i) => { u[l] = i === 0 ? 0 : (r() * 1.6 - 0.3); }); util[a.key] = u; }
+    else {
+      const L = a.levels.map(Number), span = (Math.max(...L) - Math.min(...L)) || 1;
+      const sign = a.better === 'lower' ? -1 : 1;
+      util[a.key] = sign * (0.4 + r() * 1.6) / span;
+    }
+  });
+  return { util, firstBias: 0.1 + r() * 0.4, misread: 0.02 + r() * 0.08 };
+}
+function simConjoint(study, task, name, r) {
+  const T = simTruth(study, name);
+  const d = productUtility(study, T.util, task.p1) - productUtility(study, T.util, task.p2) + T.firstBias;
+  const p = 1 / (1 + Math.exp(-d));
+  if (r() < 0.01) return 'I like both of these.'; // occasional unclear answer
+  return 'ANSWER: ' + (r() < p ? 'first' : 'second') + ' REASON: simulated.';
+}
+function simRanking(study, name, r) {
+  const T = simTruth(study, name);
+  const u = study.products.map(p => ({ id: p.id, u: productUtility(study, T.util, p.attrs) + (r() - 0.5) * 0.6 }));
+  return 'RANKING: ' + u.sort((a, b) => b.u - a.u).map(x => x.id).join(', ');
+}
+function simStorefront(study, layout, name, r) {
+  const T = simTruth(study, name);
+  const byId = Object.fromEntries(study.products.map(p => [p.id, p]));
+  const u = layout.map(L => productUtility(study, T.util, byId[L.id].attrs) + (L.row === 1 ? 0.3 : 0) + (L.col === 1 ? 0.2 : 0));
+  const mx = Math.max(...u), ex = u.map(x => Math.exp(x - mx)), S = ex.reduce((a, b) => a + b, 0);
+  let x = r() * S, i = 0; while (x > ex[i] && i < ex.length - 1) { x -= ex[i]; i++; }
+  const p = byId[layout[i].id];
+  const args = { product_id: p.id, price: productPrice(study, p), rating: Number(p.rating) };
+  study.attributes.filter(a => a.key !== 'price').forEach(a => { args[readbackKey(a.name)] = fmtValue(a, p.attrs[a.key]); });
+  if (r() < T.misread) { const a = study.attributes.find(at => at.key !== 'price'); args[readbackKey(a.name)] = 'misread'; }
+  return { text: 'Simulated reasoning.', args };
+}
+
+const api = { rng, shuffle, fmtValue, makeConjointDesign, describeProfile, conjointPrompt, parseFirstSecond, rankingPrompt, parseRanking,
+  makeStorefrontDesign, storefrontPrompt, addToCartTool, readbackKey, cardLines, productPrice, storefrontText, checkReadback, parseToolArgsFromText,
+  logit, fitConjoint, conjointColumns, productUtility, predictShares, rankOf, spearman, pearson, wilson, storefrontSummary, clogit, poolRE,
+  toCSV, conjointLong, spssSyntax, spssName, sha256, simTruth, simConjoint, simRanking, simStorefront, pTwo, fill };
+if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.LabCore = api;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script>
+<script>window.LAB_PRESET = {
+ "name": "Study 3 — E-readers (conjoint → prediction → storefront)",
+ "category": "e-reader",
+ "categoryPlural": "e-readers",
+ "seed": 20261124,
+ "notes": "Storefront products and specs from the-ebook-reader.com 7\"-8\" comparison table (checked 27 Oct 2026), as locked in the 27 Oct storefront run. Rating and review count are fixed on every card (4.5 stars, 1,000 reviews), so they are left out of the conjoint. Resolution follows screen colour exactly and Carta vs Carta 1200 is a minor variant, so both are left out.",
+ "attributes": [
+  {
+   "key": "price",
+   "name": "Price",
+   "type": "continuous",
+   "levels": [
+    149,
+    199,
+    249,
+    299,
+    349
+   ],
+   "format": "${v}",
+   "better": "lower"
+  },
+  {
+   "key": "battery",
+   "name": "Battery life",
+   "type": "continuous",
+   "levels": [
+    3,
+    4,
+    6,
+    8,
+    12
+   ],
+   "format": "Up to {v} weeks",
+   "better": "higher"
+  },
+  {
+   "key": "weight",
+   "name": "Weight",
+   "type": "continuous",
+   "levels": [
+    190,
+    215,
+    240,
+    265,
+    290
+   ],
+   "format": "{v} g",
+   "better": "lower"
+  },
+  {
+   "key": "storage",
+   "name": "Storage",
+   "type": "continuous",
+   "levels": [
+    16,
+    32,
+    64
+   ],
+   "format": "{v} GB",
+   "better": "higher"
+  },
+  {
+   "key": "screen",
+   "name": "Screen size",
+   "type": "continuous",
+   "levels": [
+    7,
+    7.8,
+    8
+   ],
+   "format": "{v} inches",
+   "better": ""
+  },
+  {
+   "key": "colour",
+   "name": "Screen colour",
+   "type": "categorical",
+   "levels": [
+    "Black & white",
+    "Colour"
+   ],
+   "best": ""
+  },
+  {
+   "key": "water",
+   "name": "Water resistance",
+   "type": "categorical",
+   "levels": [
+    "Water-repellent",
+    "Waterproof (IPX7)",
+    "Waterproof (IPX8)"
+   ],
+   "best": "Waterproof (IPX8)"
+  },
+  {
+   "key": "buttons",
+   "name": "Page buttons",
+   "type": "categorical",
+   "levels": [
+    "No",
+    "Yes"
+   ],
+   "best": "Yes"
+  },
+  {
+   "key": "stylus",
+   "name": "Stylus support",
+   "type": "categorical",
+   "levels": [
+    "No",
+    "Yes"
+   ],
+   "best": "Yes"
+  }
+ ],
+ "products": [
+  {
+   "id": "E01",
+   "name": "Kindle Paperwhite (2024)",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 159,
+    "battery": 12,
+    "weight": 211,
+    "storage": 16,
+    "screen": 7,
+    "colour": "Black & white",
+    "water": "Waterproof (IPX8)",
+    "buttons": "No",
+    "stylus": "No"
+   }
+  },
+  {
+   "id": "E02",
+   "name": "Kindle Colorsoft",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 279,
+    "battery": 8,
+    "weight": 219,
+    "storage": 32,
+    "screen": 7,
+    "colour": "Colour",
+    "water": "Waterproof (IPX8)",
+    "buttons": "No",
+    "stylus": "No"
+   }
+  },
+  {
+   "id": "E03",
+   "name": "Kobo Libra Colour",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 219,
+    "battery": 6,
+    "weight": 200,
+    "storage": 32,
+    "screen": 7,
+    "colour": "Colour",
+    "water": "Waterproof (IPX8)",
+    "buttons": "Yes",
+    "stylus": "Yes"
+   }
+  },
+  {
+   "id": "E04",
+   "name": "Kobo Sage",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 269,
+    "battery": 3,
+    "weight": 241,
+    "storage": 32,
+    "screen": 8,
+    "colour": "Black & white",
+    "water": "Waterproof (IPX8)",
+    "buttons": "Yes",
+    "stylus": "Yes"
+   }
+  },
+  {
+   "id": "E05",
+   "name": "Boox Go 7 Color",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 249,
+    "battery": 4,
+    "weight": 195,
+    "storage": 64,
+    "screen": 7,
+    "colour": "Colour",
+    "water": "Water-repellent",
+    "buttons": "Yes",
+    "stylus": "No"
+   }
+  },
+  {
+   "id": "E06",
+   "name": "PocketBook InkPad 4",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 269,
+    "battery": 4,
+    "weight": 265,
+    "storage": 32,
+    "screen": 7.8,
+    "colour": "Black & white",
+    "water": "Waterproof (IPX8)",
+    "buttons": "Yes",
+    "stylus": "No"
+   }
+  },
+  {
+   "id": "E07",
+   "name": "PocketBook InkPad Color",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 329,
+    "battery": 4,
+    "weight": 270,
+    "storage": 32,
+    "screen": 7.8,
+    "colour": "Colour",
+    "water": "Waterproof (IPX8)",
+    "buttons": "Yes",
+    "stylus": "No"
+   }
+  },
+  {
+   "id": "E08",
+   "name": "PocketBook Era",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 219,
+    "battery": 4,
+    "weight": 228,
+    "storage": 16,
+    "screen": 7,
+    "colour": "Black & white",
+    "water": "Waterproof (IPX8)",
+    "buttons": "Yes",
+    "stylus": "No"
+   }
+  },
+  {
+   "id": "E09",
+   "name": "PocketBook Era Color",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 259,
+    "battery": 4,
+    "weight": 235,
+    "storage": 32,
+    "screen": 7,
+    "colour": "Colour",
+    "water": "Waterproof (IPX8)",
+    "buttons": "Yes",
+    "stylus": "No"
+   }
+  },
+  {
+   "id": "E10",
+   "name": "Nook GlowLight 4 Plus",
+   "rating": 4.5,
+   "reviews": 1000,
+   "attrs": {
+    "price": 199,
+    "battery": 4,
+    "weight": 285,
+    "storage": 32,
+    "screen": 7.8,
+    "colour": "Black & white",
+    "water": "Waterproof (IPX7)",
+    "buttons": "Yes",
+    "stylus": "No"
+   }
+  }
+ ],
+ "conditions": [
+  {
+   "label": "default",
+   "temperature": null
+  }
+ ],
+ "conjoint": {
+  "pairs": 1000,
+  "counterbalance": true,
+  "system": "",
+  "prompt": "I'd like you to compare 2 {products}. The first {product} has these features: {first}. The second {product} has these features: {second}. I'd like you to tell me which one you would prefer in one word (must be either \"first\" or \"second\"), followed by a short explanation (1-2 sentences) of why you chose that option. Format your response as: \"ANSWER: [first or second] REASON: [your explanation]\"",
+  "reask": "Please answer with exactly one word, either \"first\" or \"second\", in this format: \"ANSWER: [first or second]\""
+ },
+ "ranking": {
+  "enabled": true,
+  "repeats": 20,
+  "system": "",
+  "prompt": "Here are {n} {products}.\n\n{list}\n\nRank all {n} from the one you would most recommend to a typical buyer to the one you would least recommend. Reply with \"RANKING:\" followed by all {n} product codes in order, separated by commas, then one sentence on your main reason."
+ },
+ "storefront": {
+  "trials": 1000,
+  "rows": 2,
+  "cols": 5,
+  "cardTitle": "E-Reader",
+  "readback": true,
+  "system": "You are a helpful shopping assistant and are to purchase a single product.",
+  "prompt": "You are a personal shopping assistant helping someone find a good {product}. They haven't specified particular requirements, so use your best judgment about what would work well for a typical person, and select one product to purchase.\n\n<instructions>\n1. Carefully examine the entire screenshot to identify all available products and their attributes.\n2. Use the `add_to_cart` function when you are ready to buy a product.\n3. Before making your selection, explain your reasoning for choosing this product, including what factors influenced your decision and any assumptions you made about what would be best:\n   - Your primary decision criteria and why you prioritized them\n   - How each available product performed on these criteria\n   - What specific factors made your chosen product superior\n   - Any assumptions you made about the user's needs or preferences\n4. If information is missing or unclear in the screenshot, explicitly mention the limitation and how it influenced your decision-making.\n</instructions>",
+  "textPrompt": "You are a personal shopping assistant helping someone find a good {product}. They haven't specified particular requirements, so use your best judgment about what would work well for a typical person, and select one product to purchase.\n\nThe store page shows these products (row, column, code, details):\n{page}\n\n<instructions>\n1. Carefully examine the whole page to identify all available products and their attributes.\n2. Use the `add_to_cart` function when you are ready to buy a product.\n3. Before making your selection, explain your reasoning for choosing this product, including what factors influenced your decision and any assumptions you made about what would be best.\n4. If information is missing or unclear, explicitly mention the limitation and how it influenced your decision-making.\n</instructions>",
+  "reask": "Please call the add_to_cart function now with the product you chose."
+ },
+ "validation": {
+  "trials": 10
+ }
+};</script>
+<script>/* LLM Conjoint Lab — interface, runner and API adapters. */
+(function () {
+'use strict';
+const C = window.LabCore;
+const VERSION = 'v4.0';
+const $ = id => document.getElementById(id);
+const esc = s => String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const clone = o => JSON.parse(JSON.stringify(o));
+const f3 = v => (v === undefined || v === null || !isFinite(v)) ? '' : Number(v).toFixed(3);
+const f5 = v => (v === undefined || v === null || !isFinite(v)) ? '' : Number(v).toFixed(5);
+const pct = v => (v === undefined || v === null || !isFinite(v)) ? '' : (100 * v).toFixed(1) + '%';
+const pfmt = p => !isFinite(p) ? '' : p < .001 ? '< .001' : p.toFixed(3).replace(/^0/, '');
+
+// ---------- Project state ----------
+let P = null; // project
+function newProject() {
+  return { version: VERSION, studies: [clone(window.LAB_PRESET)], current: 0, models: defaultModels(), results: {}, locks: {}, settings: { concurrency: 6 } };
+}
+function defaultModels() {
+  const slots = [];
+  ['OpenAI', 'Anthropic', 'Google'].forEach(pv => ['small', 'mid', 'frontier'].forEach(t => slots.push({ uid: pv[0] + t[0] + Math.random().toString(36).slice(2, 6), label: pv + ' ' + t, provider: 'openrouter', model: '', tier: t, vision: true, enabled: false })));
+  return slots;
+}
+const study = () => P.studies[P.current];
+const studyKey = () => study().name + '#' + study().seed;
+function resFor(m, cond) {
+  const k = studyKey(); P.results[k] = P.results[k] || {};
+  const mk = m.uid; P.results[k][mk] = P.results[k][mk] || {};
+  const r = P.results[k][mk][cond] = P.results[k][mk][cond] || { conjoint: {}, ranking: {}, storefront: {}, validation: {}, prediction: null };
+  return r;
+}
+function hasResults() { const r = P.results[studyKey()]; return r && Object.values(r).some(m => Object.values(m).some(c => Object.keys(c.conjoint).length || Object.keys(c.storefront).length || Object.keys(c.ranking).length)); }
+
+// ---------- Persistence (IndexedDB; keys kept apart) ----------
+const DB = { db: null };
+function idb() {
+  return new Promise(res => {
+    try {
+      const rq = indexedDB.open('llm-conjoint-lab', 1);
+      rq.onupgradeneeded = () => rq.result.createObjectStore('kv');
+      rq.onsuccess = () => { DB.db = rq.result; res(true); };
+      rq.onerror = () => res(false);
+    } catch (e) { res(false); }
+  });
+}
+function idbGet(k) { return new Promise(res => { try { const t = DB.db.transaction('kv').objectStore('kv').get(k); t.onsuccess = () => res(t.result); t.onerror = () => res(null); } catch (e) { res(null); } }); }
+function idbSet(k, v) { return new Promise(res => { try { const t = DB.db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = () => res(true); t.onerror = () => res(false); } catch (e) { res(false); } }); }
+let saveTimer = null;
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (DB.db) idbSet('project', JSON.stringify(P)); }, 800); }
+function keys() { return { openrouter: $('key_openrouter').value.trim(), openai: $('key_openai').value.trim(), anthropic: $('key_anthropic').value.trim(), google: $('key_google').value.trim() }; }
+function saveKeys() { if ($('rememberKeys').checked && DB.db) idbSet('keys', JSON.stringify(keys())); else if (DB.db) idbSet('keys', ''); }
+
+// ---------- Navigation ----------
+const pages = [...document.querySelectorAll('section.page')];
+let pageIx = 0;
+function go(i) {
+  pageIx = Math.max(0, Math.min(pages.length - 1, i));
+  pages.forEach((p, j) => p.classList.toggle('on', j === pageIx));
+  [...$('nav').children].forEach((b, j) => b.classList.toggle('on', j === pageIx));
+  $('back').disabled = pageIx === 0; $('next').disabled = pageIx === pages.length - 1;
+  const name = pages[pageIx].dataset.page;
+  if (name === 'products') { renderProducts(); drawCardPreview(); }
+  if (name === 'design') { renderDesign(); }
+  if (name === 'run') renderProgress();
+  if (name === 'results') renderResultsPickers();
+  if (name === 'compare') renderCompare();
+  window.scrollTo(0, 0);
+}
+pages.forEach((p, i) => { const b = document.createElement('button'); b.textContent = p.dataset.title; b.onclick = () => go(i); $('nav').appendChild(b); });
+$('back').onclick = () => go(pageIx - 1); $('next').onclick = () => go(pageIx + 1);
+
+// ---------- Logging ----------
+function log(msg) { const el = $('log'); const t = new Date().toLocaleTimeString(); el.textContent += '[' + t + '] ' + msg + '\n'; el.scrollTop = el.scrollHeight; }
+
+// ---------- Page 1: models ----------
+const PROVIDERS = ['openrouter', 'openai', 'anthropic', 'google', 'sim'];
+function renderModels() {
+  const t = $('modelTable');
+  t.innerHTML = '<tr><th>Use</th><th>Label</th><th>Provider</th><th>Model ID</th><th>Tier</th><th>Vision <span class="tip" data-tip="Ticked: the storefront is sent as a screenshot. Unticked: the same page is sent as text.">i</span></th><th></th></tr>' +
+    P.models.map((m, i) => '<tr data-i="' + i + '"><td><input type="checkbox" data-f="enabled" ' + (m.enabled ? 'checked' : '') + '></td>' +
+      '<td><input type="text" data-f="label" value="' + esc(m.label) + '"></td>' +
+      '<td><select data-f="provider">' + PROVIDERS.map(p => '<option ' + (p === m.provider ? 'selected' : '') + '>' + p + '</option>').join('') + '</select></td>' +
+      '<td><input type="text" data-f="model" list="orModels" value="' + esc(m.model) + '" placeholder="' + (m.provider === 'sim' ? 'any name' : 'e.g. provider/model-name') + '"></td>' +
+      '<td><select data-f="tier">' + ['small', 'mid', 'frontier', 'other'].map(p => '<option ' + (p === m.tier ? 'selected' : '') + '>' + p + '</option>').join('') + '</select></td>' +
+      '<td><input type="checkbox" data-f="vision" ' + (m.vision ? 'checked' : '') + '></td>' +
+      '<td><button class="btn" data-del="' + i + '">✕</button></td></tr>').join('');
+  t.querySelectorAll('input,select').forEach(el => el.onchange = () => {
+    const m = P.models[+el.closest('tr').dataset.i], f = el.dataset.f;
+    m[f] = el.type === 'checkbox' ? el.checked : el.value; save(); if (f === 'provider') renderModels();
+  });
+  t.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { P.models.splice(+b.dataset.del, 1); save(); renderModels(); });
+}
+$('addModel').onclick = () => { P.models.push({ uid: 'm' + Date.now().toString(36), label: 'New model', provider: 'openrouter', model: '', tier: 'other', vision: true, enabled: true }); save(); renderModels(); };
+$('addSims').onclick = () => { ['sim-alpha', 'sim-beta', 'sim-gamma'].forEach(n => P.models.push({ uid: n + Date.now().toString(36), label: n, provider: 'sim', model: n, tier: 'other', vision: true, enabled: true })); save(); renderModels(); };
+$('fetchModels').onclick = async () => {
+  $('fetchStatus').textContent = 'Fetching…';
+  try {
+    const r = await fetch('https://openrouter.ai/api/v1/models'); const j = await r.json();
+    const list = j.data.map(m => ({ id: m.id, vision: ((m.architecture && m.architecture.input_modalities) || []).includes('image'), tools: (m.supported_parameters || []).includes('tools'), p: m.pricing || {} }));
+    $('orModels').innerHTML = list.map(m => '<option value="' + esc(m.id) + '">' + esc(m.id) + (m.vision ? ' · vision' : '') + (m.tools ? ' · tools' : ' · NO tools') + ' · $' + (Number(m.p.prompt || 0) * 1e6).toFixed(2) + '/$' + (Number(m.p.completion || 0) * 1e6).toFixed(2) + ' per M</option>').join('');
+    window.OR_LIST = list;
+    $('fetchStatus').textContent = list.length + ' models loaded. Start typing in a Model ID box to pick one.';
+  } catch (e) { $('fetchStatus').textContent = 'Could not fetch the list: ' + e.message; }
+};
+['key_openrouter', 'key_openai', 'key_anthropic', 'key_google', 'rememberKeys'].forEach(id => $(id).addEventListener('change', saveKeys));
+$('concurrency').onchange = () => { P.settings.concurrency = Math.max(1, +$('concurrency').value || 6); save(); };
+
+// ---------- Page 2: study ----------
+function lockedNote() {
+  const on = hasResults();
+  $('lockNote').innerHTML = on ? '<div class="notice">This study already has results. Changing attributes, levels, products or the seed would change the design, so make a <b>Duplicate</b> first and edit the copy.</div>' : '';
+  document.querySelectorAll('#attrTable input,#attrTable select,#prodTable input,#s_seed').forEach(el => { el.disabled = on; });
+}
+function renderStudyPick() {
+  $('studyPick').innerHTML = P.studies.map((s, i) => '<option value="' + i + '" ' + (i === P.current ? 'selected' : '') + '>' + esc(s.name) + '</option>').join('');
+}
+function renderStudy() {
+  const s = study();
+  renderStudyPick();
+  $('s_name').value = s.name; $('s_category').value = s.category; $('s_plural').value = s.categoryPlural || ''; $('s_seed').value = s.seed;
+  const t = $('attrTable');
+  t.innerHTML = '<tr><th>Name</th><th>Type</th><th>Levels (comma separated; categorical: reference first)</th><th>Display <span class="tip" data-tip="How a continuous value is written, with {v} for the number, e.g. ${v} or Up to {v} weeks.">i</span></th><th>Better</th><th></th></tr>' +
+    s.attributes.map((a, i) => '<tr data-i="' + i + '"><td><input type="text" data-f="name" value="' + esc(a.name) + '"></td>' +
+      '<td><select data-f="type"><option ' + (a.type === 'continuous' ? 'selected' : '') + '>continuous</option><option ' + (a.type === 'categorical' ? 'selected' : '') + '>categorical</option></select></td>' +
+      '<td><input type="text" data-f="levels" value="' + esc(a.levels.join(', ')) + '"></td>' +
+      '<td>' + (a.type === 'continuous' ? '<input type="text" data-f="format" value="' + esc(a.format || '{v}') + '">' : '<span class="muted small">as written</span>') + '</td>' +
+      '<td>' + (a.type === 'continuous' ? '<select data-f="better">' + ['', 'higher', 'lower'].map(v => '<option value="' + v + '" ' + ((a.better || '') === v ? 'selected' : '') + '>' + (v || 'no clear direction') + '</option>').join('') + '</select>'
+        : '<select data-f="best"><option value="">no clear best</option>' + a.levels.map(l => '<option ' + (a.best === l ? 'selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>') + '</td>' +
+      '<td><button class="btn" data-del="' + i + '">✕</button></td></tr>').join('');
+  t.querySelectorAll('input,select').forEach(el => el.onchange = () => {
+    const a = s.attributes[+el.closest('tr').dataset.i], f = el.dataset.f;
+    if (f === 'levels') {
+      const parts = el.value.split(',').map(x => x.trim()).filter(x => x !== '');
+      a.levels = a.type === 'continuous' ? parts.map(Number).filter(x => isFinite(x)) : parts;
+    } else if (f === 'type') { a.type = el.value; if (a.type === 'continuous') a.levels = a.levels.map(Number).filter(isFinite); renderStudy(); }
+    else if (f === 'name') { const old = a.key; a.name = el.value; if (!old) a.key = C.spssName(el.value).toLowerCase(); }
+    else a[f] = el.value;
+    save();
+  });
+  t.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { const a = s.attributes.splice(+b.dataset.del, 1)[0]; s.products.forEach(p => delete p.attrs[a.key]); save(); renderStudy(); });
+  const ct = $('condTable');
+  ct.innerHTML = '<tr><th>Label</th><th>Temperature (blank = model default)</th><th></th></tr>' + s.conditions.map((c, i) => '<tr data-i="' + i + '"><td><input type="text" data-f="label" value="' + esc(c.label) + '"></td><td><input type="number" step="0.1" data-f="temperature" value="' + (c.temperature === null || c.temperature === undefined ? '' : c.temperature) + '"></td><td>' + (s.conditions.length > 1 ? '<button class="btn" data-del="' + i + '">✕</button>' : '') + '</td></tr>').join('');
+  ct.querySelectorAll('input').forEach(el => el.onchange = () => { const c = s.conditions[+el.closest('tr').dataset.i]; if (el.dataset.f === 'temperature') c.temperature = el.value === '' ? null : Number(el.value); else c.label = el.value; save(); });
+  ct.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { s.conditions.splice(+b.dataset.del, 1); save(); renderStudy(); });
+  lockedNote();
+}
+$('addAttr').onclick = () => { const k = 'attr' + Date.now().toString(36); study().attributes.push({ key: k, name: 'New attribute', type: 'categorical', levels: ['No', 'Yes'], best: '' }); save(); renderStudy(); };
+$('addCond').onclick = () => { study().conditions.push({ label: 'T=' + (study().conditions.length), temperature: 0 }); save(); renderStudy(); };
+['s_name', 's_category', 's_plural', 's_seed'].forEach(id => $(id).onchange = () => {
+  const s = study(); const v = $(id).value;
+  if (id === 's_name') s.name = v; if (id === 's_category') s.category = v; if (id === 's_plural') s.categoryPlural = v; if (id === 's_seed') s.seed = Number(v);
+  save(); renderStudyPick();
+});
+$('studyPick').onchange = () => { P.current = +$('studyPick').value; save(); renderStudy(); };
+$('studyNew').onclick = () => { const s = clone(window.LAB_PRESET); s.name = 'New study ' + (P.studies.length + 1); s.attributes = []; s.products = []; s.seed = Math.floor(Math.random() * 1e8); P.studies.push(s); P.current = P.studies.length - 1; save(); renderStudy(); };
+$('studyDup').onclick = () => { const s = clone(study()); s.name += ' (copy)'; P.studies.push(s); P.current = P.studies.length - 1; save(); renderStudy(); };
+$('studyLoadPreset').onclick = () => { P.studies.push(clone(window.LAB_PRESET)); P.current = P.studies.length - 1; save(); renderStudy(); };
+
+// ---------- Page 3: products ----------
+function renderProducts() {
+  const s = study(), t = $('prodTable');
+  t.innerHTML = '<tr><th>Code</th><th>Name (records only)</th><th>Rating</th><th>Reviews</th>' + s.attributes.map(a => '<th>' + esc(a.name) + '</th>').join('') + '<th></th></tr>' +
+    s.products.map((p, i) => '<tr data-i="' + i + '"><td><input type="text" data-f="id" value="' + esc(p.id) + '" style="width:60px"></td><td><input type="text" data-f="name" value="' + esc(p.name) + '"></td>' +
+      '<td><input type="number" step="0.1" data-f="rating" value="' + esc(p.rating) + '" style="width:60px"></td><td><input type="number" data-f="reviews" value="' + esc(p.reviews) + '" style="width:70px"></td>' +
+      s.attributes.map(a => '<td>' + (a.type === 'categorical' ? '<select data-a="' + a.key + '">' + a.levels.map(l => '<option ' + (String(p.attrs[a.key]) === String(l) ? 'selected' : '') + '>' + esc(l) + '</option>').join('') + '</select>'
+        : '<input type="number" step="any" data-a="' + a.key + '" value="' + esc(p.attrs[a.key]) + '" style="width:75px">') + '</td>').join('') +
+      '<td><button class="btn" data-del="' + i + '">✕</button></td></tr>').join('');
+  t.querySelectorAll('input,select').forEach(el => el.onchange = () => {
+    const p = s.products[+el.closest('tr').dataset.i];
+    if (el.dataset.a) { const a = s.attributes.find(x => x.key === el.dataset.a); p.attrs[a.key] = a.type === 'continuous' ? Number(el.value) : el.value; }
+    else p[el.dataset.f] = (el.dataset.f === 'rating' || el.dataset.f === 'reviews') ? Number(el.value) : el.value;
+    save(); drawCardPreview();
+  });
+  t.querySelectorAll('[data-del]').forEach(b => b.onclick = () => { s.products.splice(+b.dataset.del, 1); save(); renderProducts(); });
+  lockedNote();
+}
+$('addProd').onclick = () => {
+  const s = study(), n = s.products.length + 1;
+  const attrs = {}; s.attributes.forEach(a => { attrs[a.key] = a.levels[0]; });
+  s.products.push({ id: 'P' + String(n).padStart(2, '0'), name: '', rating: 4.5, reviews: 1000, attrs }); save(); renderProducts();
+};
+$('applyPaste').onclick = () => {
+  const s = study(), txt = $('pasteRows').value.trim(); if (!txt) return;
+  const lines = txt.split(/\r?\n/).filter(l => l.trim()); const sep = lines[0].includes('\t') ? '\t' : ',';
+  const head = lines[0].split(sep).map(h => h.trim().toLowerCase());
+  const col = n => head.indexOf(n.toLowerCase());
+  const out = lines.slice(1).map((l, i) => {
+    const c = l.split(sep).map(x => x.trim());
+    const attrs = {};
+    s.attributes.forEach(a => { const j = col(a.name) >= 0 ? col(a.name) : col(a.key); let v = j >= 0 ? c[j] : a.levels[0]; if (a.type === 'continuous') v = Number(String(v).replace(/[^0-9.\-]/g, '')); attrs[a.key] = v; });
+    return { id: c[col('id')] || ('P' + String(i + 1).padStart(2, '0')), name: col('name') >= 0 ? c[col('name')] : '', rating: col('rating') >= 0 ? Number(c[col('rating')]) : 4.5, reviews: col('reviews') >= 0 ? Number(c[col('reviews')]) : 1000, attrs };
+  });
+  if (!confirmBox('Replace ' + s.products.length + ' products with ' + out.length + ' pasted rows?')) return;
+  s.products = out; save(); renderProducts(); drawCardPreview();
+};
+function confirmBox(msg) { try { return window.confirm(msg); } catch (e) { return true; } }
+
+// ---------- Card drawing (screenshot mode) ----------
+const CARD = { w: 228, h: 318, gap: 14, pad: 16 };
+function drawCard(ctx, x, y, s, p) {
+  ctx.save();
+  ctx.fillStyle = '#fff'; ctx.strokeStyle = '#d9d9d9'; ctx.lineWidth = 1;
+  roundRect(ctx, x, y, CARD.w, CARD.h, 8); ctx.fill(); ctx.stroke();
+  // code label
+  ctx.fillStyle = '#eef1f5'; roundRect(ctx, x + 8, y + 8, 44, 20, 4); ctx.fill();
+  ctx.fillStyle = '#333'; ctx.font = '600 12px Arial'; ctx.fillText(p.id, x + 14, y + 22);
+  // product image placeholder: a simple e-reader/device outline
+  ctx.fillStyle = '#f3f3f3'; ctx.fillRect(x + 64, y + 34, 100, 74);
+  ctx.strokeStyle = '#9a9a9a'; ctx.lineWidth = 2; roundRect(ctx, x + 98, y + 40, 32, 62, 4); ctx.stroke();
+  ctx.fillStyle = '#e6e6e6'; ctx.fillRect(x + 102, y + 45, 24, 48);
+  // title, price, rating
+  ctx.fillStyle = '#111'; ctx.font = '13px Arial'; ctx.fillText(s.storefront.cardTitle || s.category, x + 10, y + 128);
+  ctx.font = '700 16px Arial'; ctx.fillText('$' + C.productPrice(s, p).toFixed(2), x + 10, y + 149);
+  const r = Number(p.rating); let sx = x + 10;
+  for (let i = 1; i <= 5; i++) { ctx.fillStyle = r >= i ? '#e8a33d' : (r >= i - 0.5 ? '#f0c987' : '#d6d6d6'); ctx.font = '13px Arial'; ctx.fillText('★', sx, y + 168); sx += 13; }
+  ctx.fillStyle = '#555'; ctx.font = '12px Arial'; ctx.fillText(r.toFixed(1) + ' (' + Number(p.reviews).toLocaleString('en-US') + ')', sx + 4, y + 167);
+  // attributes (smaller text, as in the earlier storefronts)
+  let ly = y + 186; ctx.font = '11.5px Arial'; ctx.fillStyle = '#333';
+  C.cardLines(s, p).forEach(l => { wrapText(ctx, l.label + ': ' + l.value, x + 10, ly, CARD.w - 20, 14).forEach(t => { ctx.fillText(t, x + 10, ly); ly += 14; }); });
+  // button
+  ctx.fillStyle = '#f2c14e'; roundRect(ctx, x + 10, y + CARD.h - 30, CARD.w - 20, 22, 11); ctx.fill();
+  ctx.fillStyle = '#111'; ctx.font = '12px Arial'; ctx.textAlign = 'center'; ctx.fillText('Add to cart', x + CARD.w / 2, y + CARD.h - 15); ctx.textAlign = 'left';
+  ctx.restore();
+}
+function wrapText(ctx, text, x, y, maxW) {
+  const words = String(text).split(' '), out = []; let line = '';
+  words.forEach(w => { const t = line ? line + ' ' + w : w; if (ctx.measureText(t).width > maxW && line) { out.push(line); line = w; } else line = t; });
+  if (line) out.push(line); return out;
+}
+function roundRect(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+function renderPage(canvas, s, layout) {
+  const st = s.storefront;
+  canvas.width = CARD.pad * 2 + st.cols * CARD.w + (st.cols - 1) * CARD.gap;
+  canvas.height = CARD.pad * 2 + st.rows * CARD.h + (st.rows - 1) * CARD.gap + 30;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fafafa'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#222'; ctx.font = '600 14px Arial'; ctx.fillText('Results', CARD.pad, CARD.pad + 12);
+  const byId = Object.fromEntries(s.products.map(p => [p.id, p]));
+  layout.forEach(L => drawCard(ctx, CARD.pad + (L.col - 1) * (CARD.w + CARD.gap), CARD.pad + 30 + (L.row - 1) * (CARD.h + CARD.gap), s, byId[L.id]));
+  return canvas;
+}
+function drawCardPreview() {
+  const s = study(); if (!s.products.length) return;
+  const cv = $('cardPreview'); const st = s.storefront;
+  const lay = s.products.slice(0, Math.min(s.products.length, st.cols)).map((p, i) => ({ id: p.id, slot: i + 1, row: 1, col: i + 1 }));
+  renderPage(cv, Object.assign({}, s, { storefront: Object.assign({}, st, { rows: 1 }) }), lay);
+}
+
+// ---------- Page 4: design ----------
+const designFields = [['c_pairs', 'conjoint', 'pairs', 'n'], ['c_counter', 'conjoint', 'counterbalance', 'b'], ['c_prompt', 'conjoint', 'prompt'], ['c_reask', 'conjoint', 'reask'],
+  ['r_enabled', 'ranking', 'enabled', 'b'], ['r_repeats', 'ranking', 'repeats', 'n'], ['r_prompt', 'ranking', 'prompt'],
+  ['f_trials', 'storefront', 'trials', 'n'], ['f_rows', 'storefront', 'rows', 'n'], ['f_cols', 'storefront', 'cols', 'n'], ['f_title', 'storefront', 'cardTitle'], ['f_readback', 'storefront', 'readback', 'b'],
+  ['f_system', 'storefront', 'system'], ['f_prompt', 'storefront', 'prompt'], ['f_textPrompt', 'storefront', 'textPrompt'], ['f_reask', 'storefront', 'reask'], ['v_trials', 'validation', 'trials', 'n']];
+function renderDesign() {
+  const s = study(); s.validation = s.validation || { trials: 10 };
+  designFields.forEach(([id, sec, k, t]) => { const el = $(id); if (t === 'b') el.checked = !!s[sec][k]; else el.value = s[sec][k] === undefined ? '' : s[sec][k]; });
+  const tasks = C.makeConjointDesign(s);
+  $('c_example').textContent = tasks.length ? C.conjointPrompt(s, tasks[0]) : '(add attributes first)';
+  if (s.products.length) renderPage($('pagePreview'), s, C.makeStorefrontDesign(s, 1, 0)[0].layout);
+  const nm = P.models.filter(m => m.enabled).length, nc = s.conditions.length;
+  const perModel = tasks.length + (s.ranking.enabled ? s.ranking.repeats : 0) + s.storefront.trials;
+  $('callEstimate').innerHTML = '<p>Per model and condition: <b>' + tasks.length.toLocaleString() + '</b> conjoint calls' + (s.conjoint.counterbalance ? ' (' + s.conjoint.pairs + ' pairs × 2 orders)' : '') +
+    (s.ranking.enabled ? ' + <b>' + s.ranking.repeats + '</b> ranking calls' : '') + ' + <b>' + s.storefront.trials.toLocaleString() + '</b> storefront calls = <b>' + perModel.toLocaleString() + '</b>.</p>' +
+    '<p>With <b>' + nm + '</b> models switched on and <b>' + nc + '</b> condition(s): about <b>' + (perModel * nm * nc).toLocaleString() + '</b> calls, plus a few re-asks. Storefront screenshot calls cost the most.</p>';
+}
+designFields.forEach(([id, sec, k, t]) => { $(id).onchange = () => { const s = study(); const el = $(id); s[sec][k] = t === 'b' ? el.checked : t === 'n' ? Number(el.value) : el.value; save(); renderDesign(); }; });
+
+// ---------- API adapters ----------
+class ApiError extends Error { constructor(msg, status) { super(msg); this.status = status; } }
+async function post(url, headers, body) {
+  let r;
+  try { r = await fetch(url, { method: 'POST', headers: Object.assign({ 'Content-Type': 'application/json' }, headers), body: JSON.stringify(body) }); }
+  catch (e) { throw new ApiError('Network error: ' + e.message, 0); }
+  const txt = await r.text(); let j = null; try { j = JSON.parse(txt); } catch (e) { /* not json */ }
+  if (!r.ok) throw new ApiError('HTTP ' + r.status + ': ' + (j && (j.error && (j.error.message || j.error)) ? JSON.stringify(j.error.message || j.error).slice(0, 300) : txt.slice(0, 300)), r.status);
+  if (j && j.error) throw new ApiError('API error: ' + JSON.stringify(j.error).slice(0, 300), 500);
+  return j;
+}
+function stripSchema(o) { // Gemini rejects some JSON-schema keywords
+  if (Array.isArray(o)) return o.map(stripSchema);
+  if (o && typeof o === 'object') { const r = {}; Object.keys(o).forEach(k => { if (k !== 'additionalProperties' && k !== 'strict') r[k] = stripSchema(o[k]); }); return r; }
+  return o;
+}
+// req: {system, messages:[{role, text, image}], tool, temperature}
+async function callModel(m, req, simCtx) {
+  const K = keys();
+  if (m.provider === 'sim') return simCtx();
+  const temp = req.temperature;
+  if (m.provider === 'openrouter' || m.provider === 'openai') {
+    const url = m.provider === 'openrouter' ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions';
+    const key = m.provider === 'openrouter' ? K.openrouter : K.openai; if (!key) throw new ApiError('No ' + m.provider + ' key', 401);
+    const msgs = []; if (req.system) msgs.push({ role: 'system', content: req.system });
+    req.messages.forEach(x => {
+      if (x.role === 'assistant' && x.toolCall) msgs.push({ role: 'assistant', content: x.text || '', tool_calls: [x.toolCall] });
+      else msgs.push({ role: x.role, content: x.image ? [{ type: 'text', text: x.text }, { type: 'image_url', image_url: { url: x.image } }] : x.text });
+    });
+    const body = { model: m.model, messages: msgs };
+    if (temp !== null && temp !== undefined) body.temperature = temp;
+    if (req.tool) { body.tools = [{ type: 'function', function: req.tool }]; body.tool_choice = 'auto'; }
+    const h = { Authorization: 'Bearer ' + key }; if (m.provider === 'openrouter') { h['X-Title'] = 'LLM Conjoint Lab'; }
+    const j = await post(url, h, body);
+    const msg = (j.choices && j.choices[0] && j.choices[0].message) || {};
+    const tc = msg.tool_calls && msg.tool_calls[0];
+    let args = null; if (tc) { try { args = JSON.parse(tc.function.arguments || '{}'); } catch (e) { args = null; } }
+    return { text: typeof msg.content === 'string' ? msg.content : (Array.isArray(msg.content) ? msg.content.map(c => c.text || '').join('') : ''), args, modelReturned: j.model || m.model, usage: j.usage || null };
+  }
+  if (m.provider === 'anthropic') {
+    if (!K.anthropic) throw new ApiError('No Anthropic key', 401);
+    const msgs = req.messages.map(x => ({ role: x.role, content: x.image ? [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: x.image.split(',')[1] } }, { type: 'text', text: x.text }] : x.text }));
+    const body = { model: m.model, max_tokens: 2048, messages: msgs };
+    if (req.system) body.system = req.system;
+    if (temp !== null && temp !== undefined) body.temperature = temp;
+    if (req.tool) body.tools = [{ name: req.tool.name, description: req.tool.description, input_schema: req.tool.parameters }];
+    const j = await post('https://api.anthropic.com/v1/messages', { 'x-api-key': K.anthropic, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' }, body);
+    const text = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('\n');
+    const tu = (j.content || []).find(c => c.type === 'tool_use');
+    return { text, args: tu ? tu.input : null, modelReturned: j.model || m.model, usage: j.usage || null };
+  }
+  if (m.provider === 'google') {
+    if (!K.google) throw new ApiError('No Google key', 401);
+    const contents = req.messages.map(x => ({ role: x.role === 'assistant' ? 'model' : 'user', parts: x.image ? [{ text: x.text }, { inline_data: { mime_type: 'image/png', data: x.image.split(',')[1] } }] : [{ text: x.text }] }));
+    const body = { contents };
+    if (req.system) body.systemInstruction = { parts: [{ text: req.system }] };
+    if (temp !== null && temp !== undefined) body.generationConfig = { temperature: temp };
+    if (req.tool) body.tools = [{ functionDeclarations: [{ name: req.tool.name, description: req.tool.description, parameters: stripSchema(req.tool.parameters) }] }];
+    const j = await post('https://generativelanguage.googleapis.com/v1beta/models/' + encodeURIComponent(m.model) + ':generateContent?key=' + encodeURIComponent(K.google), {}, body);
+    const parts = (j.candidates && j.candidates[0] && j.candidates[0].content && j.candidates[0].content.parts) || [];
+    const fc = parts.find(p => p.functionCall);
+    return { text: parts.filter(p => p.text).map(p => p.text).join('\n'), args: fc ? fc.functionCall.args : null, modelReturned: j.modelVersion || m.model, usage: j.usageMetadata || null };
+  }
+  throw new ApiError('Unknown provider ' + m.provider, 400);
+}
+async function withRetry(fn, label) {
+  let wait = 2000;
+  for (let a = 1; ; a++) {
+    try { return await fn(); }
+    catch (e) {
+      const retryable = !(e.status >= 400 && e.status < 500 && e.status !== 429 && e.status !== 408);
+      if (!retryable || a >= 4) throw e;
+      log(label + ': ' + e.message + ' — retrying in ' + (wait / 1000) + ' s');
+      await new Promise(r => setTimeout(r, wait)); wait *= 2;
+    }
+  }
+}
+
+// ---------- Runner ----------
+const RUN = { on: false, paused: false, active: 0, waiters: [] };
+async function slot() {
+  const lim = Math.max(1, P.settings.concurrency || 6);
+  while (RUN.active >= lim || RUN.paused) await new Promise(r => RUN.waiters.push(r));
+  RUN.active++;
+}
+function wake() { const w = RUN.waiters.splice(0); w.forEach(r => r()); }
+function release() { RUN.active--; wake(); }
+async function pool(items, fn) {
+  await Promise.all(items.map(async it => { if (!RUN.on) return; await slot(); try { if (RUN.on) await fn(it); } finally { release(); } }));
+}
+function simRng(m, id) { return C.rng([...(m.model + '|' + id)].reduce((s, c) => (s * 33 + c.charCodeAt(0)) >>> 0, 5381)); }
+
+async function runConjointTask(m, cond, s, task, R) {
+  const prompt = C.conjointPrompt(s, task);
+  const req = { system: s.conjoint.system || '', temperature: cond.temperature, messages: [{ role: 'user', text: prompt }] };
+  const r = simRng(m, task.id);
+  const out = await withRetry(() => callModel(m, req, () => ({ text: C.simConjoint(s, task, m.model, r), modelReturned: 'sim:' + m.model })), m.label + ' ' + task.id);
+  let choice = C.parseFirstSecond(out.text), reasked = false, text = out.text;
+  if (!choice) {
+    reasked = true;
+    const req2 = { system: req.system, temperature: cond.temperature, messages: [{ role: 'user', text: prompt }, { role: 'assistant', text: out.text || '(no answer)' }, { role: 'user', text: s.conjoint.reask }] };
+    const out2 = await withRetry(() => callModel(m, req2, () => ({ text: 'ANSWER: ' + (r() < 0.5 ? 'first' : 'second'), modelReturned: 'sim:' + m.model })), m.label + ' ' + task.id + ' re-ask');
+    choice = C.parseFirstSecond(out2.text); text = out.text + '\n--- re-ask ---\n' + out2.text;
+  }
+  R.conjoint[task.id] = { id: task.id, pair: task.pair, order: task.order, p1: task.p1, p2: task.p2, choice: choice || null, reasked, text, modelReturned: out.modelReturned, usage: out.usage || null, at: new Date().toISOString() };
+}
+async function runRankingTask(m, cond, s, rep, R) {
+  const r0 = C.rng((Number(s.seed) || 1) * 104729 + rep);
+  const order = C.shuffle(s.products, r0);
+  const prompt = C.rankingPrompt(s, order);
+  const ids = s.products.map(p => p.id);
+  const r = simRng(m, 'R' + rep);
+  const out = await withRetry(() => callModel(m, { system: s.ranking.system || '', temperature: cond.temperature, messages: [{ role: 'user', text: prompt }] }, () => ({ text: C.simRanking(s, m.model, r), modelReturned: 'sim:' + m.model })), m.label + ' ranking ' + rep);
+  R.ranking[rep] = { rep, shown: order.map(p => p.id), ranking: C.parseRanking(out.text, ids), text: out.text, modelReturned: out.modelReturned, at: new Date().toISOString() };
+}
+async function runStorefrontTrial(m, cond, sIn, trial, store, tag) {
+  const s = sIn;
+  const tool = C.addToCartTool(s);
+  const ids = s.products.map(p => p.id);
+  const useImage = !!m.vision;
+  let userText, image = null;
+  if (useImage) { userText = C.storefrontPrompt(s); image = renderPage(document.createElement('canvas'), s, trial.layout).toDataURL('image/png'); }
+  else userText = C.fill(s.storefront.textPrompt, { product: s.category, products: s.categoryPlural || s.category + 's', page: C.storefrontText(s, trial.layout) });
+  const req = { system: s.storefront.system, temperature: cond.temperature, tool, messages: [{ role: 'user', text: userText, image }] };
+  const r = simRng(m, tag + trial.trial);
+  const sim = () => { const o = C.simStorefront(s, trial.layout, m.model, r); return { text: o.text, args: o.args, modelReturned: 'sim:' + m.model }; };
+  let out = await withRetry(() => callModel(m, req, sim), m.label + ' ' + tag + ' ' + trial.trial);
+  let args = out.args && ids.includes(out.args.product_id) ? out.args : C.parseToolArgsFromText(out.text, ids);
+  let text = out.text || '', reasked = false;
+  if (!args || !ids.includes(args.product_id)) {
+    reasked = true;
+    const req2 = Object.assign({}, req, { messages: req.messages.concat([{ role: 'assistant', text: out.text || '(no answer)' }, { role: 'user', text: s.storefront.reask }]) });
+    const out2 = await withRetry(() => callModel(m, req2, sim), m.label + ' ' + tag + ' ' + trial.trial + ' re-ask');
+    args = out2.args && ids.includes(out2.args.product_id) ? out2.args : C.parseToolArgsFromText(out2.text, ids);
+    text += '\n--- re-ask ---\n' + (out2.text || '');
+  }
+  const ok = args && ids.includes(args.product_id);
+  const chk = ok ? C.checkReadback(s, args) : { misread: [], n: 0 };
+  const L = ok ? trial.layout.find(x => x.id === args.product_id) : null;
+  store[trial.trial] = { trial: trial.trial, chosen: ok ? args.product_id : null, slot: L ? L.slot : null, row: L ? L.row : null, col: L ? L.col : null, reported: args || null, misread: chk.misread, nMisread: chk.n, reasked, mode: useImage ? 'screenshot' : 'text', text, modelReturned: out.modelReturned, usage: out.usage || null, at: new Date().toISOString() };
+}
+
+function enabledModels() { return P.models.filter(m => m.enabled && m.model); }
+function sizes(s) {
+  const full = $('runSize').value === 'full';
+  const tasks = C.makeConjointDesign(s);
+  const perPair = s.conjoint.counterbalance ? 2 : 1;
+  return { tasks: full ? tasks : tasks.slice(0, Math.max(1, +$('pilotPairs').value || 20) * perPair), trials: full ? s.storefront.trials : Math.max(1, +$('pilotTrials').value || 10), reps: s.ranking.enabled ? (full ? s.ranking.repeats : Math.min(s.ranking.repeats, 3)) : 0 };
+}
+
+async function lockPrediction(m, cond, s, R) {
+  const fit = C.fitConjoint(s, Object.values(R.conjoint));
+  if (fit.error) { log(m.label + ': prediction not locked — ' + fit.error); return null; }
+  const pred = C.predictShares(s, fit.util);
+  const payload = JSON.stringify({ model: m.model, condition: cond.label, nAnswers: fit.n, utilities: fit.util, predicted: pred });
+  R.prediction = { at: new Date().toISOString(), hash: await C.sha256(payload), nAnswers: fit.n, util: fit.util, predicted: pred, payload };
+  log(m.label + ' [' + cond.label + ']: prediction locked from ' + fit.n + ' answers, sha256 ' + R.prediction.hash.slice(0, 12) + '…');
+  return R.prediction;
+}
+
+async function runModel(m, cond, s, mods, sz) {
+  const R = resFor(m, cond.label);
+  try {
+    const conj = mods.conjoint ? sz.tasks.filter(t => !R.conjoint[t.id]) : [];
+    const reps = mods.ranking ? Array.from({ length: sz.reps }, (_, i) => i + 1).filter(i => !R.ranking[i]) : [];
+    let done = 0;
+    await pool(conj.map(t => ({ k: 'c', t })).concat(reps.map(i => ({ k: 'r', i }))), async it => {
+      try { if (it.k === 'c') await runConjointTask(m, cond, s, it.t, R); else await runRankingTask(m, cond, s, it.i, R); }
+      catch (e) { if (e.status === 401 || e.status === 403 || e.status === 404) { log(m.label + ': ' + e.message + ' — stopping this model.'); throw e; } log(m.label + ': ' + e.message); }
+      if (++done % 10 === 0) { save(); renderProgress(); }
+    });
+    save(); renderProgress();
+    if (mods.storefront && RUN.on) {
+      // refit and re-lock if the conjoint has grown since the last lock (e.g. pilot → full)
+      const nNow = Object.values(R.conjoint).filter(r => r.choice).length;
+      if (!R.prediction || R.prediction.nAnswers !== nNow) await lockPrediction(m, cond, s, R);
+      const design = C.makeStorefrontDesign(s, sz.trials, 0).filter(t => !R.storefront[t.trial]);
+      let k = 0;
+      await pool(design, async t => {
+        try { await runStorefrontTrial(m, cond, s, t, R.storefront, 'S'); }
+        catch (e) { if (e.status === 401 || e.status === 403 || e.status === 404) { log(m.label + ': ' + e.message + ' — stopping this model.'); throw e; } log(m.label + ': ' + e.message); }
+        if (++k % 5 === 0) { save(); renderProgress(); }
+      });
+    }
+  } catch (e) { log(m.label + ': stopped (' + e.message + ')'); }
+  save(); renderProgress();
+}
+
+function setRunning(on) { RUN.on = on; $('runAll').disabled = on; $('runValidate').disabled = on; $('pauseRun').disabled = !on; $('pauseRun').textContent = 'Pause'; RUN.paused = false; }
+$('pauseRun').onclick = () => { RUN.paused = !RUN.paused; $('pauseRun').textContent = RUN.paused ? 'Resume' : 'Pause'; if (!RUN.paused) wake(); log(RUN.paused ? 'Paused (calls already sent will finish).' : 'Resumed.'); };
+$('runAll').onclick = async () => {
+  const s = study(), ms = enabledModels();
+  if (!ms.length) { log('Switch on at least one model with a model ID (page 1).'); return; }
+  if (!s.attributes.length || s.products.length < 2) { log('The study needs attributes and at least 2 products.'); return; }
+  const mods = { conjoint: $('m_conjoint').checked, ranking: $('m_ranking').checked, storefront: $('m_storefront').checked };
+  const sz = sizes(s);
+  log('Starting ' + ($('runSize').value) + ' run: ' + ms.length + ' model(s) × ' + s.conditions.length + ' condition(s); ' + sz.tasks.length + ' conjoint tasks, ' + sz.reps + ' ranking repeats, ' + sz.trials + ' storefront trials each.');
+  setRunning(true);
+  await Promise.all(ms.flatMap(m => s.conditions.map(c => runModel(m, c, s, mods, sz))));
+  setRunning(false); log('Run finished.'); renderProgress();
+};
+// Extreme-condition validation: product 1 is best on every attribute with a clear direction,
+// the others are worst on those attributes; attributes without a direction are identical.
+function validationStudy(s) {
+  const v = clone(s);
+  const best = {}, worst = {};
+  s.attributes.forEach(a => {
+    if (a.type === 'continuous' && a.better) { const L = a.levels.map(Number); best[a.key] = a.better === 'higher' ? Math.max(...L) : Math.min(...L); worst[a.key] = a.better === 'higher' ? Math.min(...L) : Math.max(...L); }
+    else if (a.type === 'categorical' && a.best) { best[a.key] = a.best; worst[a.key] = a.levels.find(l => l !== a.best); }
+    else { best[a.key] = worst[a.key] = s.products[0].attrs[a.key]; }
+  });
+  v.products = s.products.map((p, i) => Object.assign({}, p, { attrs: Object.assign({}, p.attrs, i === 0 ? best : worst) }));
+  return { v, dominant: s.products[0].id };
+}
+$('runValidate').onclick = async () => {
+  const s = study(), ms = enabledModels(); if (!ms.length) { log('Switch on at least one model first.'); return; }
+  const { v, dominant } = validationStudy(s);
+  const n = (s.validation && s.validation.trials) || 10;
+  const design = C.makeStorefrontDesign(v, n, 99991);
+  log('Validation check: ' + dominant + ' is best on every attribute with a clear direction. ' + n + ' trials per model.');
+  setRunning(true);
+  await Promise.all(ms.flatMap(m => s.conditions.map(async c => {
+    const R = resFor(m, c.label); R.validation = { dominant, trials: {} };
+    await pool(design, async t => { try { await runStorefrontTrial(m, c, v, t, R.validation.trials, 'V'); } catch (e) { log(m.label + ' validation: ' + e.message); } });
+    const rows = Object.values(R.validation.trials), hit = rows.filter(r => r.chosen === dominant).length;
+    log(m.label + ' [' + c.label + ']: picked the dominant product ' + hit + '/' + rows.length + (hit === rows.length && rows.length ? ' — PASS' : ' — CHECK'));
+    save();
+  })));
+  setRunning(false); renderProgress();
+};
+$('clearResults').onclick = () => {
+  if (!confirmBox('Delete all results for "' + study().name + '"? Save a project file first if you may need them.')) return;
+  delete P.results[studyKey()]; save(); renderProgress(); log('Results cleared for this study.');
+};
+
+function renderProgress() {
+  const s = study(), sz = (() => { try { return sizes(s); } catch (e) { return null; } })();
+  const ms = P.models.filter(m => m.enabled && m.model);
+  const rows = [];
+  ms.forEach(m => s.conditions.forEach(c => {
+    const R = resFor(m, c.label);
+    const cj = Object.values(R.conjoint), ok = cj.filter(r => r.choice).length, sf = Object.values(R.storefront);
+    const val = R.validation && R.validation.trials ? Object.values(R.validation.trials) : [];
+    const vhit = val.filter(r => r.chosen === R.validation.dominant).length;
+    const tgtC = sz ? sz.tasks.length : 0, tgtS = sz ? sz.trials : 0;
+    rows.push('<tr><td>' + esc(m.label) + '<div class="muted small">' + esc(m.model) + '</div></td><td>' + esc(c.label) + '</td>' +
+      '<td>' + (val.length ? '<span class="pill ' + (vhit === val.length ? 'good' : 'bad') + '">' + vhit + '/' + val.length + '</span>' : '<span class="muted">—</span>') + '</td>' +
+      '<td style="min-width:150px">' + cj.length + ' / ' + tgtC + ' <span class="muted small">(' + (cj.length - ok) + ' missing)</span><div class="bar"><i style="width:' + Math.min(100, tgtC ? 100 * cj.length / tgtC : 0) + '%"></i></div></td>' +
+      '<td>' + Object.keys(R.ranking).length + '</td>' +
+      '<td>' + (R.prediction ? '<span class="pill good" title="' + esc(R.prediction.hash) + '">locked ' + new Date(R.prediction.at).toLocaleString() + '</span>' : '<span class="muted">—</span>') + '</td>' +
+      '<td style="min-width:150px">' + sf.length + ' / ' + tgtS + '<div class="bar"><i style="width:' + Math.min(100, tgtS ? 100 * sf.length / tgtS : 0) + '%"></i></div></td></tr>');
+  }));
+  $('progress').innerHTML = '<tr><th>Model</th><th>Condition</th><th>Validation</th><th>Conjoint answers</th><th>Rankings</th><th>Prediction</th><th>Storefront trials</th></tr>' + (rows.join('') || '<tr><td colspan="7" class="muted">Switch on models with IDs on page 1.</td></tr>');
+}
+
+// ---------- Results ----------
+function modelsWithResults() { const r = P.results[studyKey()] || {}; return P.models.filter(m => r[m.uid]); }
+function renderResultsPickers() {
+  const ms = modelsWithResults();
+  $('resModel').innerHTML = ms.map(m => '<option value="' + m.uid + '">' + esc(m.label) + '</option>').join('');
+  $('resCond').innerHTML = study().conditions.map(c => '<option>' + esc(c.label) + '</option>').join('');
+  renderResults();
+}
+$('resModel').onchange = renderResults; $('resCond').onchange = renderResults;
+function analyse(m, condLabel) {
+  const s = study(), R = resFor(m, condLabel);
+  const rows = Object.values(R.conjoint);
+  const fit = C.fitConjoint(s, rows);
+  const pred = fit.error ? null : C.predictShares(s, fit.util);
+  const rk = Object.values(R.ranking).filter(x => x.ranking);
+  let meanRank = null, rhoRank = null;
+  if (rk.length) {
+    meanRank = s.products.map(p => rk.reduce((a, x) => a + x.ranking.indexOf(p.id) + 1, 0) / rk.length);
+    if (pred) rhoRank = C.spearman(pred.map(x => x.rank), meanRank);
+  }
+  const sf = Object.values(R.storefront);
+  const sum = sf.length ? C.storefrontSummary(s, sf) : null;
+  const locked = R.prediction;
+  let match = null;
+  if (sum && locked && sum.n) {
+    const ps = locked.predicted.map(x => x.share), os = sum.shares.map(x => x.share);
+    const topP = locked.predicted.slice().sort((a, b) => b.share - a.share)[0].id, topO = sum.shares.slice().sort((a, b) => b.share - a.share)[0].id;
+    match = { rho: C.spearman(ps, os), mae: ps.reduce((a, v, i) => a + Math.abs(v - os[i]), 0) / ps.length, topP, topO, topMatch: topP === topO };
+  }
+  let cl = null;
+  if (sf.length >= 10) { const dbt = Object.fromEntries(C.makeStorefrontDesign(s, Math.max(...sf.map(r => r.trial)), 0).map(t => [t.trial, t.layout])); cl = C.clogit(s, sf, dbt); }
+  return { s, R, fit, pred, meanRank, rhoRank, nRank: rk.length, sum, locked, match, cl };
+}
+function renderResults() {
+  const m = P.models.find(x => x.uid === $('resModel').value); const body = $('resBody');
+  if (!m) { body.innerHTML = '<div class="card muted">No results yet.</div>'; return; }
+  const A = analyse(m, $('resCond').value), s = A.s;
+  let h = '';
+  if (A.fit.error) h += '<div class="card"><h2>A. Conjoint</h2><p class="muted">' + esc(A.fit.error) + '</p></div>';
+  else {
+    const f = A.fit;
+    h += '<div class="card"><h2>A. Conjoint — binary logistic regression on Product 1 − Product 2</h2><p class="small muted">' + f.n + ' valid answers, ' + f.nMissing + ' missing. Chose the first product ' + pct(f.firstShare) + ' of the time (p ' + pfmt(f.firstShareP) + ' vs 50%). Nagelkerke R² ' + f3(f.nagelkerke) + '.</p>' +
+      '<table><tr><th>Term</th><th class="num">B</th><th class="num">SE</th><th class="num">z</th><th class="num">p</th><th class="num">Exp(B)</th></tr>' +
+      f.terms.map(t => '<tr><td>' + esc(t.name) + '</td><td class="num">' + f5(t.b) + '</td><td class="num">' + f5(t.se) + '</td><td class="num">' + f3(t.z) + '</td><td class="num ' + (t.p < .05 ? 'sig' : '') + '">' + pfmt(t.p) + '</td><td class="num">' + f3(Math.exp(t.b)) + '</td></tr>').join('') + '</table>' +
+      '<h3>Relative importance (utility-range method)</h3><table>' + s.attributes.slice().sort((a, b) => f.importance[b.key] - f.importance[a.key]).map(a => '<tr><td style="width:200px">' + esc(a.name) + '</td><td><div class="bar"><i style="width:' + (100 * f.importance[a.key]).toFixed(1) + '%"></i></div></td><td class="num" style="width:70px">' + pct(f.importance[a.key]) + '</td></tr>').join('') + '</table></div>';
+  }
+  if (A.pred) {
+    const byId = Object.fromEntries(s.products.map(p => [p.id, p]));
+    const L = A.locked ? Object.fromEntries(A.locked.predicted.map(x => [x.id, x])) : null;
+    const O = A.sum ? Object.fromEntries(A.sum.shares.map(x => [x.id, x])) : null;
+    h += '<div class="card"><h2>B–C. Prediction vs ranking vs storefront</h2>' +
+      (A.locked ? '<p class="small">Prediction locked ' + new Date(A.locked.at).toLocaleString() + ' from ' + A.locked.nAnswers + ' answers. SHA-256 <code>' + esc(A.locked.hash) + '</code></p>' : '<p class="small muted">Prediction not locked yet (it locks before the storefront runs).</p>') +
+      '<table><tr><th>Code</th><th>Product</th><th class="num">Utility</th><th class="num">Predicted rank</th><th class="num">Predicted share (locked)</th><th class="num">Mean rank (ranking task)</th><th class="num">Storefront share</th><th class="num">95% CI</th></tr>' +
+      s.products.map((p, i) => '<tr><td>' + p.id + '</td><td>' + esc(byId[p.id].name) + '</td><td class="num">' + f3(A.pred[i].utility) + '</td><td class="num">' + A.pred[i].rank + '</td><td class="num">' + (L ? pct(L[p.id].share) : '') + '</td><td class="num">' + (A.meanRank ? A.meanRank[i].toFixed(2) : '') + '</td><td class="num">' + (O ? pct(O[p.id].share) + ' <span class="muted small">(' + O[p.id].k + ')</span>' : '') + '</td><td class="num">' + (O ? pct(O[p.id].lo) + '–' + pct(O[p.id].hi) : '') + '</td></tr>').join('') + '</table>' +
+      '<p class="small">' + (A.rhoRank !== null ? 'Conjoint-predicted rank vs ranking task (' + A.nRank + ' rankings): Spearman ρ = <b>' + f3(A.rhoRank) + '</b>. ' : '') +
+      (A.match ? 'Locked prediction vs storefront shares: Spearman ρ = <b>' + f3(A.match.rho) + '</b>, mean absolute share error ' + pct(A.match.mae) + '; top pick predicted ' + A.match.topP + ', chosen most ' + A.match.topO + ' <span class="pill ' + (A.match.topMatch ? 'good' : 'warn') + '">' + (A.match.topMatch ? 'match' : 'no match') + '</span>' : '') + '</p></div>';
+  }
+  if (A.sum) {
+    h += '<div class="card"><h2>C. Storefront</h2><p class="small">' + A.sum.n + ' valid choices, ' + A.sum.nInvalid + ' with no valid product. Read-back: ' + pct(A.sum.misreadRate) + ' of choices had at least one misread field.</p>';
+    if (A.cl && !A.cl.error) h += '<h3>Conditional logit: product fixed effects + row + column (reference: ' + A.cl.reference + ', row 1, column 1)</h3><table><tr><th>Term</th><th class="num">B</th><th class="num">SE</th><th class="num">z</th><th class="num">p</th></tr>' + A.cl.terms.map(t => '<tr><td>' + t.term + '</td><td class="num">' + f3(t.b) + '</td><td class="num">' + f3(t.se) + '</td><td class="num">' + f3(t.z) + '</td><td class="num ' + (t.p < .05 ? 'sig' : '') + '">' + pfmt(t.p) + '</td></tr>').join('') + '</table>' + (A.cl.neverChosen.length ? '<p class="small muted">Never chosen (left out of the model): ' + A.cl.neverChosen.join(', ') + '</p>' : '');
+    else if (A.cl) h += '<p class="small muted">' + esc(A.cl.error) + '</p>';
+    const mis = Object.values(A.R.storefront).filter(r => r.nMisread);
+    if (mis.length) { const cnt = {}; mis.forEach(r => r.misread.forEach(f => { cnt[f] = (cnt[f] || 0) + 1; })); h += '<h3>Misread fields</h3><p class="small">' + Object.entries(cnt).map(([k, v]) => esc(k) + ': ' + v).join(' · ') + '</p>'; }
+    h += '</div>';
+  }
+  const v = A.R.validation && A.R.validation.trials ? Object.values(A.R.validation.trials) : [];
+  if (v.length) { const hit = v.filter(r => r.chosen === A.R.validation.dominant).length; h += '<div class="card"><h2>Validation check</h2><p>Dominant product ' + A.R.validation.dominant + ' chosen in <b>' + hit + '/' + v.length + '</b> trials <span class="pill ' + (hit === v.length ? 'good' : 'bad') + '">' + (hit === v.length ? 'pass' : 'check before the real run') + '</span></p></div>'; }
+  body.innerHTML = h;
+}
+
+// ---------- Compare ----------
+function compareRows() {
+  const s = study(), out = [];
+  modelsWithResults().forEach(m => s.conditions.forEach(c => {
+    const A = analyse(m, c.label); if (A.fit.error && !A.sum) return;
+    const top = A.fit.error ? [] : s.attributes.slice().sort((a, b) => A.fit.importance[b.key] - A.fit.importance[a.key]).slice(0, 3).map(a => a.name + ' ' + pct(A.fit.importance[a.key]));
+    out.push({ m, c, A, top });
+  }));
+  return out;
+}
+function renderCompare() {
+  const s = study(), rows = compareRows(), el = $('cmpBody');
+  if (!rows.length) { el.innerHTML = '<div class="card muted">Run at least one model first.</div>'; return; }
+  let h = '<div class="card"><h2>Models side by side</h2><table><tr><th>Model</th><th>Cond.</th><th class="num">Valid answers</th><th class="num">Missing</th><th class="num">Chose first</th><th>Top attributes</th><th class="num">ρ prediction vs ranking</th><th class="num">ρ prediction vs storefront</th><th>Top pick (pred / actual)</th><th class="num">Misread</th></tr>' +
+    rows.map(r => { const A = r.A; return '<tr><td>' + esc(r.m.label) + '</td><td>' + esc(r.c.label) + '</td><td class="num">' + (A.fit.n || '') + '</td><td class="num">' + (A.fit.nMissing === undefined ? '' : A.fit.nMissing) + '</td><td class="num">' + (A.fit.firstShare ? pct(A.fit.firstShare) : '') + '</td><td class="small">' + esc(r.top.join(', ')) + '</td><td class="num">' + (A.rhoRank === null ? '' : f3(A.rhoRank)) + '</td><td class="num">' + (A.match ? f3(A.match.rho) : '') + '</td><td>' + (A.match ? A.match.topP + ' / ' + A.match.topO : '') + '</td><td class="num">' + (A.sum ? pct(A.sum.misreadRate) : '') + '</td></tr>'; }).join('') + '</table></div>';
+  // attribute effects across models + random-effects pooling
+  const fits = rows.filter(r => !r.A.fit.error);
+  if (fits.length) {
+    const terms = fits[0].A.fit.terms.map(t => t.name);
+    h += '<div class="card"><h2>Attribute effects across models (B, * p < .05) with random-effects pooling <span class="tip" data-tip="DerSimonian–Laird random-effects average of each coefficient across models. I² is the share of variation between models beyond sampling error: high I² means the models disagree.">i</span></h2><div style="overflow:auto"><table><tr><th>Term</th>' + fits.map(r => '<th class="num">' + esc(r.m.label) + '</th>').join('') + '<th class="num">Pooled B</th><th class="num">SE</th><th class="num">p</th><th class="num">I²</th></tr>' +
+      terms.map(tn => { const est = fits.map(r => r.A.fit.terms.find(t => t.name === tn)); const pl = C.poolRE(est); return '<tr><td>' + esc(tn) + '</td>' + est.map(t => '<td class="num">' + f3(t.b) + (t.p < .05 ? '*' : '') + '</td>').join('') + '<td class="num">' + (pl ? f3(pl.b) : '') + '</td><td class="num">' + (pl ? f3(pl.se) : '') + '</td><td class="num">' + (pl ? pfmt(pl.p) : '') + '</td><td class="num">' + (pl ? pct(pl.I2) : '') + '</td></tr>'; }).join('') + '</table></div></div>';
+    h += '<div class="card"><h2>Relative importance across models</h2><table><tr><th>Attribute</th>' + fits.map(r => '<th class="num">' + esc(r.m.label) + '</th>').join('') + '</tr>' + s.attributes.map(a => '<tr><td>' + esc(a.name) + '</td>' + fits.map(r => '<td class="num">' + pct(r.A.fit.importance[a.key]) + '</td>').join('') + '</tr>').join('') + '</table></div>';
+  }
+  el.innerHTML = h;
+}
+
+// ---------- Export ----------
+function download(name, text, type) { const b = new Blob([text], { type: type || 'text/plain' }); const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); }
+const slug = () => study().name.replace(/[^A-Za-z0-9]+/g, '_').slice(0, 40);
+function exportData(kind) {
+  const s = study(), ms = modelsWithResults(), stamp = new Date().toISOString().slice(0, 10);
+  const each = fn => { const out = []; ms.forEach(m => s.conditions.forEach(c => fn(m, c, resFor(m, c.label), out))); return out; };
+  if (kind === 'conjoint') { const rows = each((m, c, R, out) => out.push(...C.conjointLong(s, m.label + ' | ' + m.model, c.label, Object.values(R.conjoint)))); if (!rows.length) return log('No conjoint answers yet.'); download(slug() + '_conjoint_' + stamp + '.csv', C.toCSV(rows, Object.keys(rows[0])), 'text/csv'); }
+  if (kind === 'ranking') { const rows = each((m, c, R, out) => Object.values(R.ranking).forEach(r => out.push({ model: m.label + ' | ' + m.model, condition: c.label, rep: r.rep, shown_order: r.shown.join(' '), ranking: r.ranking ? r.ranking.join(' ') : '', valid: r.ranking ? 1 : 0, response: r.text }))); if (!rows.length) return log('No rankings yet.'); download(slug() + '_ranking_' + stamp + '.csv', C.toCSV(rows, Object.keys(rows[0])), 'text/csv'); }
+  if (kind === 'storefront') { const rows = each((m, c, R, out) => Object.values(R.storefront).forEach(r => out.push({ model: m.label + ' | ' + m.model, condition: c.label, trial: r.trial, chosen: r.chosen || '', slot: r.slot, row: r.row, col: r.col, mode: r.mode, n_misread: r.nMisread, misread_fields: (r.misread || []).join('; '), reasked: r.reasked ? 1 : 0, reported: r.reported, model_returned: r.modelReturned, reasoning: r.text }))); if (!rows.length) return log('No storefront choices yet.'); download(slug() + '_storefront_' + stamp + '.csv', C.toCSV(rows, Object.keys(rows[0])), 'text/csv'); }
+  if (kind === 'design') { const rows = []; C.makeStorefrontDesign(s, s.storefront.trials, 0).forEach(t => t.layout.forEach(L => rows.push({ trial: t.trial, product_id: L.id, slot: L.slot, grid_row: L.row, grid_col: L.col }))); download(slug() + '_storefront_design.csv', C.toCSV(rows, Object.keys(rows[0])), 'text/csv'); }
+  if (kind === 'coefs') { const rows = each((m, c, R, out) => { const f = C.fitConjoint(s, Object.values(R.conjoint)); if (!f.error) f.terms.forEach(t => out.push({ model: m.label + ' | ' + m.model, condition: c.label, term: t.name, B: t.b, SE: t.se, z: t.z, p: t.p, n: f.n })); }); if (!rows.length) return log('No fitted models yet.'); download(slug() + '_coefficients_' + stamp + '.csv', C.toCSV(rows, Object.keys(rows[0])), 'text/csv'); }
+  if (kind === 'predictions') { const rows = each((m, c, R, out) => { if (!R.prediction) return; const sum = Object.keys(R.storefront).length ? C.storefrontSummary(s, Object.values(R.storefront)) : null; R.prediction.predicted.forEach(p => { const o = sum ? sum.shares.find(x => x.id === p.id) : null; out.push({ model: m.label + ' | ' + m.model, condition: c.label, product: p.id, utility: p.utility, predicted_rank: p.rank, predicted_share: p.share, storefront_n: o ? o.k : '', storefront_share: o ? o.share : '', locked_at: R.prediction.at, sha256: R.prediction.hash }); }); }); if (!rows.length) return log('No locked predictions yet.'); download(slug() + '_predictions_' + stamp + '.csv', C.toCSV(rows, Object.keys(rows[0])), 'text/csv'); }
+  if (kind === 'compare') { const rows = compareRows().map(r => ({ model: r.m.label, model_id: r.m.model, tier: r.m.tier, condition: r.c.label, valid_answers: r.A.fit.n || '', missing: r.A.fit.nMissing, chose_first: r.A.fit.firstShare, rho_pred_vs_ranking: r.A.rhoRank, rho_pred_vs_storefront: r.A.match ? r.A.match.rho : '', mae_share: r.A.match ? r.A.match.mae : '', top_pick_pred: r.A.match ? r.A.match.topP : '', top_pick_actual: r.A.match ? r.A.match.topO : '', misread_rate: r.A.sum ? r.A.sum.misreadRate : '' })); if (!rows.length) return log('Nothing to compare yet.'); download(slug() + '_comparison_' + stamp + '.csv', C.toCSV(rows, Object.keys(rows[0])), 'text/csv'); }
+  if (kind === 'spss') download(slug() + '_conjoint.sps', C.spssSyntax(s, 'each model (filter on the model column if the file holds several)'));
+  if (kind === 'project') download('llm_conjoint_lab_project_' + stamp + '.json', JSON.stringify(P), 'application/json');
+  if (kind === 'study') download(slug() + '.json', JSON.stringify(s, null, 2), 'application/json');
+}
+document.querySelectorAll('[data-exp]').forEach(b => b.onclick = () => exportData(b.dataset.exp));
+$('openProject').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const j = JSON.parse(await f.text()); if (!j.studies) throw new Error('not a project file'); P = j; save(); initUI(); log('Project opened.'); } catch (err) { alert('Could not open: ' + err.message); } };
+$('openStudy').onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const j = JSON.parse(await f.text()); if (!j.attributes) throw new Error('not a study file'); P.studies.push(j); P.current = P.studies.length - 1; save(); renderStudy(); log('Study added.'); } catch (err) { alert('Could not open: ' + err.message); } };
+
+// ---------- Init ----------
+function initUI() { $('ver').textContent = VERSION; $('concurrency').value = P.settings.concurrency || 6; renderModels(); renderStudy(); go(pageIx); }
+(async function () {
+  await idb();
+  const saved = DB.db ? await idbGet('project') : null;
+  try { P = saved ? JSON.parse(saved) : newProject(); } catch (e) { P = newProject(); }
+  const k = DB.db ? await idbGet('keys') : null;
+  if (k) { try { const o = JSON.parse(k); Object.keys(o).forEach(n => { if ($('key_' + n)) $('key_' + n).value = o[n]; }); $('rememberKeys').checked = true; } catch (e) { /* ignore */ } }
+  initUI();
+  window.LAB = { get P() { return P; }, exportData, analyse, renderResults, renderCompare, go }; // for testing
+})();
+})();
+</script>
+</body>
+</html>

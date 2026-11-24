@@ -1,0 +1,14 @@
+const C=require('../src/core.js');
+const fs=require('fs');
+const s=JSON.parse(fs.readFileSync(__dirname+'/../studies/study3_ereaders.json'));
+s.conjoint.pairs=1000;
+const tasks=C.makeConjointDesign(s);
+const r=C.rng(42);
+const rows=tasks.map(t=>{const txt=C.simConjoint(s,t,'sim-alpha',r);return Object.assign({},t,{choice:C.parseFirstSecond(txt)})});
+const fit=C.fitConjoint(s,rows);
+const cols=C.conjointColumns(s);
+const X=rows.filter(r=>r.choice).map(r=>cols.map(c=>(c.level===null?Number(r.p1[c.attr])-Number(r.p2[c.attr]):((r.p1[c.attr]==c.level)-(r.p2[c.attr]==c.level)))).concat([r.choice==='first'?1:0]));
+fs.writeFileSync('conj.json',JSON.stringify({X,terms:fit.terms.map(t=>[t.name,t.b,t.se,t.p])}));
+console.log('tasks',tasks.length,'valid',fit.n,'missing',fit.nMissing,'firstShare',fit.firstShare.toFixed(3));
+console.log('truth',JSON.stringify(C.simTruth(s,'sim-alpha').util));
+console.log(fit.terms.map(t=>t.name+' '+t.b.toFixed(4)).join('\n'));

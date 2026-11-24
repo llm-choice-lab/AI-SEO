@@ -1,0 +1,56 @@
+{
+  "name": "Study 3 — E-readers (conjoint → prediction → storefront)",
+  "category": "e-reader",
+  "categoryPlural": "e-readers",
+  "seed": 20261124,
+  "notes": "Storefront products and specs from the-ebook-reader.com 7\"-8\" comparison table (checked 27 Oct 2026), as locked in the 27 Oct storefront run. Rating and review count are fixed on every card (4.5 stars, 1,000 reviews), so they are left out of the conjoint. Resolution follows screen colour exactly and Carta vs Carta 1200 is a minor variant, so both are left out.",
+  "attributes": [
+    { "key": "price", "name": "Price", "type": "continuous", "levels": [149, 199, 249, 299, 349], "format": "${v}", "better": "lower" },
+    { "key": "battery", "name": "Battery life", "type": "continuous", "levels": [3, 4, 6, 8, 12], "format": "Up to {v} weeks", "better": "higher" },
+    { "key": "weight", "name": "Weight", "type": "continuous", "levels": [190, 215, 240, 265, 290], "format": "{v} g", "better": "lower" },
+    { "key": "storage", "name": "Storage", "type": "continuous", "levels": [16, 32, 64], "format": "{v} GB", "better": "higher" },
+    { "key": "screen", "name": "Screen size", "type": "continuous", "levels": [7, 7.8, 8], "format": "{v} inches", "better": "" },
+    { "key": "colour", "name": "Screen colour", "type": "categorical", "levels": ["Black & white", "Colour"], "best": "" },
+    { "key": "water", "name": "Water resistance", "type": "categorical", "levels": ["Water-repellent", "Waterproof (IPX7)", "Waterproof (IPX8)"], "best": "Waterproof (IPX8)" },
+    { "key": "buttons", "name": "Page buttons", "type": "categorical", "levels": ["No", "Yes"], "best": "Yes" },
+    { "key": "stylus", "name": "Stylus support", "type": "categorical", "levels": ["No", "Yes"], "best": "Yes" }
+  ],
+  "products": [
+    { "id": "E01", "name": "Kindle Paperwhite (2024)", "rating": 4.5, "reviews": 1000, "attrs": { "price": 159, "battery": 12, "weight": 211, "storage": 16, "screen": 7, "colour": "Black & white", "water": "Waterproof (IPX8)", "buttons": "No", "stylus": "No" } },
+    { "id": "E02", "name": "Kindle Colorsoft", "rating": 4.5, "reviews": 1000, "attrs": { "price": 279, "battery": 8, "weight": 219, "storage": 32, "screen": 7, "colour": "Colour", "water": "Waterproof (IPX8)", "buttons": "No", "stylus": "No" } },
+    { "id": "E03", "name": "Kobo Libra Colour", "rating": 4.5, "reviews": 1000, "attrs": { "price": 219, "battery": 6, "weight": 200, "storage": 32, "screen": 7, "colour": "Colour", "water": "Waterproof (IPX8)", "buttons": "Yes", "stylus": "Yes" } },
+    { "id": "E04", "name": "Kobo Sage", "rating": 4.5, "reviews": 1000, "attrs": { "price": 269, "battery": 3, "weight": 241, "storage": 32, "screen": 8, "colour": "Black & white", "water": "Waterproof (IPX8)", "buttons": "Yes", "stylus": "Yes" } },
+    { "id": "E05", "name": "Boox Go 7 Color", "rating": 4.5, "reviews": 1000, "attrs": { "price": 249, "battery": 4, "weight": 195, "storage": 64, "screen": 7, "colour": "Colour", "water": "Water-repellent", "buttons": "Yes", "stylus": "No" } },
+    { "id": "E06", "name": "PocketBook InkPad 4", "rating": 4.5, "reviews": 1000, "attrs": { "price": 269, "battery": 4, "weight": 265, "storage": 32, "screen": 7.8, "colour": "Black & white", "water": "Waterproof (IPX8)", "buttons": "Yes", "stylus": "No" } },
+    { "id": "E07", "name": "PocketBook InkPad Color", "rating": 4.5, "reviews": 1000, "attrs": { "price": 329, "battery": 4, "weight": 270, "storage": 32, "screen": 7.8, "colour": "Colour", "water": "Waterproof (IPX8)", "buttons": "Yes", "stylus": "No" } },
+    { "id": "E08", "name": "PocketBook Era", "rating": 4.5, "reviews": 1000, "attrs": { "price": 219, "battery": 4, "weight": 228, "storage": 16, "screen": 7, "colour": "Black & white", "water": "Waterproof (IPX8)", "buttons": "Yes", "stylus": "No" } },
+    { "id": "E09", "name": "PocketBook Era Color", "rating": 4.5, "reviews": 1000, "attrs": { "price": 259, "battery": 4, "weight": 235, "storage": 32, "screen": 7, "colour": "Colour", "water": "Waterproof (IPX8)", "buttons": "Yes", "stylus": "No" } },
+    { "id": "E10", "name": "Nook GlowLight 4 Plus", "rating": 4.5, "reviews": 1000, "attrs": { "price": 199, "battery": 4, "weight": 285, "storage": 32, "screen": 7.8, "colour": "Black & white", "water": "Waterproof (IPX7)", "buttons": "Yes", "stylus": "No" } }
+  ],
+  "conditions": [ { "label": "default", "temperature": null } ],
+  "conjoint": {
+    "pairs": 1000,
+    "counterbalance": true,
+    "system": "",
+    "prompt": "I'd like you to compare 2 {products}. The first {product} has these features: {first}. The second {product} has these features: {second}. I'd like you to tell me which one you would prefer in one word (must be either \"first\" or \"second\"), followed by a short explanation (1-2 sentences) of why you chose that option. Format your response as: \"ANSWER: [first or second] REASON: [your explanation]\"",
+    "reask": "Please answer with exactly one word, either \"first\" or \"second\", in this format: \"ANSWER: [first or second]\""
+  },
+  "ranking": {
+    "enabled": true,
+    "repeats": 20,
+    "system": "",
+    "prompt": "Here are {n} {products}.\n\n{list}\n\nRank all {n} from the one you would most recommend to a typical buyer to the one you would least recommend. Reply with \"RANKING:\" followed by all {n} product codes in order, separated by commas, then one sentence on your main reason."
+  },
+  "storefront": {
+    "trials": 1000,
+    "rows": 2,
+    "cols": 5,
+    "cardTitle": "E-Reader",
+    "readback": true,
+    "system": "You are a helpful shopping assistant and are to purchase a single product.",
+    "prompt": "You are a personal shopping assistant helping someone find a good {product}. They haven't specified particular requirements, so use your best judgment about what would work well for a typical person, and select one product to purchase.\n\n<instructions>\n1. Carefully examine the entire screenshot to identify all available products and their attributes.\n2. Use the `add_to_cart` function when you are ready to buy a product.\n3. Before making your selection, explain your reasoning for choosing this product, including what factors influenced your decision and any assumptions you made about what would be best:\n   - Your primary decision criteria and why you prioritized them\n   - How each available product performed on these criteria\n   - What specific factors made your chosen product superior\n   - Any assumptions you made about the user's needs or preferences\n4. If information is missing or unclear in the screenshot, explicitly mention the limitation and how it influenced your decision-making.\n</instructions>",
+    "textPrompt": "You are a personal shopping assistant helping someone find a good {product}. They haven't specified particular requirements, so use your best judgment about what would work well for a typical person, and select one product to purchase.\n\nThe store page shows these products (row, column, code, details):\n{page}\n\n<instructions>\n1. Carefully examine the whole page to identify all available products and their attributes.\n2. Use the `add_to_cart` function when you are ready to buy a product.\n3. Before making your selection, explain your reasoning for choosing this product, including what factors influenced your decision and any assumptions you made about what would be best.\n4. If information is missing or unclear, explicitly mention the limitation and how it influenced your decision-making.\n</instructions>",
+    "reask": "Please call the add_to_cart function now with the product you chose."
+  },
+  "validation": { "trials": 10 }
+}
