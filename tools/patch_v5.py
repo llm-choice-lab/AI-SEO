@@ -19,7 +19,7 @@ s = src
 
 # ---------------------------------------------------------------- titles / version
 s = s.replace('LLM Conjoint Lab v3 app', 'LLM Conjoint Lab v5 app')
-s = rep(s, '<span class="sub">v3 · build a study', '<span class="sub">v5 · build a study')
+s = rep(s, '<span class="sub">v3 · build a study', '<span class="sub">v5.2 · build a study')
 s = re.sub(r'<title>[^<]*</title>', '<title>LLM Conjoint Lab v5</title>', s, count=1)
 
 # ---------------------------------------------------------------- engine: linked attributes in the conjoint wording
@@ -156,8 +156,10 @@ s = rep(s, "function syncAll() { syncStudy(); syncSettings();", "function syncAl
 
 # ---------------------------------------------------------------- new code: Study 3, lock, validation, analysis
 new_code = (Path(__file__).parent / 'v5_additions.js').read_text(encoding='utf-8')
+guide_code = (Path(__file__).parent / 'guide.js').read_text(encoding='utf-8')  # first-visit tour + one-click demo
 marker = "(async () => { await IDB.open();"
-s = rep(s, marker, new_code + "\n" + marker)
+s = rep(s, marker, new_code + "\n" + guide_code + "\n" + marker)
+s = rep(s, "renderPresets(); syncAll(); })();", "renderPresets(); syncAll(); guideInit(); })();")
 
 out_path.write_text(s, encoding='utf-8')
 print('written', out_path, len(s))

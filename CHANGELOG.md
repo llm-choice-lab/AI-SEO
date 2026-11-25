@@ -1,5 +1,10 @@
 # Changelog
 
+## v5.2 — 26 Nov 2026
+
+- **Guided tour**: opens on first visit and walks through the 8 pages, highlighting the real controls; **? Tour** in the header replays it.
+- **One-click demo**: **▶ Demo** runs Study 3 on 3 simulated models (validation check, pilot, analysis) in a few seconds with no keys or cost; a banner marks demo results, and **Exit demo** restores the project you had open.
+
 ## v5.1 — 25 Nov 2026
 
 - Study 3 lineup moved from OpenRouter to direct OpenAI, Anthropic and Google keys: GPT-4o (2024-11-20), GPT-4o mini, GPT-6 Luna; Claude Haiku 5.5, Haiku 4.5, Sonnet 5.5; Gemini 2.5, 3.1 and 3.5 Flash-Lite.

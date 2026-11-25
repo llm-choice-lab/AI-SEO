@@ -27,7 +27,7 @@ Unclear answers are asked again once, then recorded as missing (never defaulted 
    - Set a **spend cap**: the run pauses when it is reached.
 5. **Results → Analyse.**
 
-To try it with no keys and no cost, press **Add 3 simulated models** on page 4.
+New to it? A short tour opens the first time you load the page (replay it with **? Tour** at the top). **▶ Demo** runs a full study on 3 simulated models in a few seconds, with no keys and no cost; **Exit demo** puts your own project back.
 
 ### Study 3 starting lineup (editable)
 
@@ -52,7 +52,7 @@ To try it with no keys and no cost, press **Add 3 simulated models** on page 4.
 | Path | What |
 |---|---|
 | `index.html` | The Lab. Built from v3 by `tools/patch_v5.py`; do not edit by hand. |
-| `tools/` | `patch_v5.py` + `v5_additions.js`: everything v5 adds to v3. Rebuild with `python tools/patch_v5.py index.html` |
+| `tools/` | `patch_v5.py` + `v5_additions.js` + `guide.js` (tour and demo): everything v5 adds to v3. Rebuild with `python tools/patch_v5.py index.html` |
 | `tests/` | Simulated end-to-end and parameter-recovery check |
 | `versions/` | v3 as recovered (18 Nov 2026) and the v4 rebuild, for reference |
 | `CHANGELOG.md` | What changed in each version |
