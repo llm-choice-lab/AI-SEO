@@ -28,11 +28,11 @@ s = rep(s, "      if (disc.length) p += (scale.length ? 'It has ' : `The ${ord} 
 
 # ---------------------------------------------------------------- state defaults
 s = rep(s, "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini' },",
-        "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini', reasoning: 'low', runSize: 'pilot', pilotPairs: 20, pilotTrials: 20, pilotRanks: 3, spendCap: 30, validationTrials: 10 },")
+        "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini', reasoning: 'low', runSize: 'pilot', pilotPairs: 30, pilotTrials: 20, pilotRanks: 3, spendCap: 30, validationTrials: 10 },")
 
 # ---------------------------------------------------------------- presets: Study 3 built in
 s = rep(s, "function renderPresets() { $('presetSel').innerHTML = ['Study 2 (speakers, built in)', ...Object.keys(presets)]",
-        "function renderPresets() { $('presetSel').innerHTML = ['Study 3 (e-readers, built in)', 'Study 2 (speakers, built in)', ...Object.keys(presets)]")
+        "function renderPresets() { $('presetSel').innerHTML = ['Study 3 (e-readers, OpenAI + Claude + Gemini, built in)', 'Study 2 (speakers, built in)', ...Object.keys(presets)]")
 s = rep(s, "$('presetLoad').onclick = () => { const n = $('presetSel').value; if (n.startsWith('Study 2')) { loadStudy2(); return; }",
         "$('presetLoad').onclick = () => { const n = $('presetSel').value; if (n.startsWith('Study 3')) { loadStudy3(); return; } if (n.startsWith('Study 2')) { loadStudy2(); return; }")
 
@@ -51,7 +51,7 @@ new_call = r'''async function callModel(u, prompt, image, simTask, o = {}) {
   if (m.provider === 'openrouter' || m.provider === 'openai') {
     const content = image ? [{ type: 'text', text: prompt }, { type: 'image_url', image_url: { url: image, ...(o.detail ? { detail: o.detail } : {}) } }] : prompt;
     const messages = [...(o.system ? [{ role: 'system', content: o.system }] : []), { role: 'user', content }];
-    const body = { model: m.model, messages }; if (m.provider === 'openai') body.max_completion_tokens = maxT; else { body.max_tokens = maxT; body.usage = { include: true }; if (S.settings.reasoning) body.reasoning = { effort: S.settings.reasoning }; } if (temp != null) body.temperature = temp;
+    const body = { model: m.model, messages }; if (m.provider === 'openai') { body.max_completion_tokens = maxT; if (S.settings.reasoning && /^(gpt-5|gpt-6|o\d)/.test(m.model)) body.reasoning_effort = S.settings.reasoning; } else { body.max_tokens = maxT; body.usage = { include: true }; if (S.settings.reasoning) body.reasoning = { effort: S.settings.reasoning }; } if (temp != null) body.temperature = temp;
     if (o.tool) { body.tools = [{ type: 'function', function: o.tool }]; body.tool_choice = 'auto'; body.parallel_tool_calls = false; }
     const j = await httpJSON(PROV[m.provider] + '/chat/completions', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + key, ...(m.provider === 'openrouter' ? { 'X-Title': 'LLM Conjoint Lab' } : {}) }, body: JSON.stringify(body) });
     const mc = j.choices?.[0]?.message; text = typeof mc?.content === 'string' ? mc.content : Array.isArray(mc?.content) ? mc.content.map(p => p.text || '').join('') : ''; inTok = j.usage?.prompt_tokens ?? null; outTok = j.usage?.completion_tokens ?? null; cost = j.usage?.cost ?? null; served = j.model || m.model;
@@ -70,6 +70,7 @@ new_call = r'''async function callModel(u, prompt, image, simTask, o = {}) {
     const j = await httpJSON(`${PROV.google}/models/${encodeURIComponent(m.model.replace(/^models\//, ''))}:generateContent?key=${encodeURIComponent(key)}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     const ps = j.candidates?.[0]?.content?.parts || []; text = ps.filter(p => !p.thought && p.text).map(p => p.text).join(''); inTok = j.usageMetadata?.promptTokenCount ?? null; outTok = j.usageMetadata?.candidatesTokenCount ?? null; served = j.modelVersion || m.model;
     const fc = ps.filter(p => p.functionCall); if (fc.length === 1) args = fc[0].functionCall.args; else if (fc.length > 1) args = { _multiple: true }; }
+  if (cost == null) cost = costFromTokens(m, inTok, outTok);
   return { text, args, inTok, outTok, cost, served, ms: Math.round(performance.now() - t0) };
 }
 '''
@@ -107,8 +108,9 @@ async function runUnit(u) { const ctl = run.ctl[u.key] = { stop: false }, first 
   log(`${u.label}: ${first.length} conjoint/ranking calls to go`);
   await workPhase(u, first, st, ctl, t => doTask(u, t)); save();
   if (S.tasks.store && !ctl.stop && !globalStop) {
-    if (S.tasks.conjoint && !(await lockPrediction(u))) { st.status = 'stopped: no prediction'; log(`${u.label}: storefront not started, because the conjoint could not be fitted yet.`); }
-    else { const store = buildTasks(u, 'store'); log(`${u.label}: prediction locked · ${store.length} storefront trials to go`); await workPhase(u, store, st, ctl, t => doTask(u, t)); } }
+    const locked = !S.tasks.conjoint || await lockPrediction(u);
+    if (!locked) log(`${u.label}: ⚠ the conjoint can't be fitted yet (too few or one-sided answers), so no prediction is locked. The storefront runs anyway; run more pairs before trusting the comparison.`);
+    const store = buildTasks(u, 'store'); log(`${u.label}: ${locked ? 'prediction locked · ' : ''}${store.length} storefront trials to go`); await workPhase(u, store, st, ctl, t => doTask(u, t)); }
   if (st.status === 'running') st.status = st.done >= st.total ? 'complete' : 'stopped'; save(); log(`${u.label}: ${st.status} (${st.ok} ok, ${st.bad} unclear/invalid, ${st.err} errors)`); }
 '''
 s = s[:old_ru_start] + new_ru + s[old_ru_end:]
@@ -140,8 +142,8 @@ s = rep(s, """<button class="b sec" id="clearAll">Clear all results</button></di
     <p class="hint" id="spendLine"></p>""")
 s = rep(s, """      <label style="flex-direction:row;align-items:center;gap:6px;font-weight:500"><input type="checkbox" id="reask"> Re-ask once if unclear</label>""",
         """      <label style="flex-direction:row;align-items:center;gap:6px;font-weight:500"><input type="checkbox" id="reask"> Re-ask once if unclear</label>
-      <label>Reasoning effort (OpenRouter) <span class="info" data-tip="For models that think before answering. Low keeps cost down; blank sends nothing and uses each model's default.">i</span> <select id="reasoning"><option value="">model default</option><option value="minimal">minimal</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
-      <label>Spend cap, US$ <span class="info" data-tip="The run pauses when the total cost reported by OpenRouter reaches this amount. Raise it and press Resume to carry on. 0 = no cap. Costs come from OpenRouter only; direct OpenAI/Anthropic/Google calls don't report cost.">i</span> <input id="spendCap" type="number" min="0" step="1" style="width:90px"></label>""")
+      <label>Reasoning effort <span class="info" data-tip="For models that think before answering (OpenRouter models, and OpenAI GPT-5/GPT-6/o-series models). Low keeps cost down; blank sends nothing and uses each model's default.">i</span> <select id="reasoning"><option value="">model default</option><option value="minimal">minimal</option><option value="low">low</option><option value="medium">medium</option><option value="high">high</option></select></label>
+      <label>Spend cap, US$ <span class="info" data-tip="The run pauses when total spend reaches this amount. Raise it and press Resume to carry on. 0 = no cap. OpenRouter reports cost per call; for direct OpenAI, Anthropic and Google calls the Lab counts tokens × each model's list price (set in the Study 3 lineup).">i</span> <input id="spendCap" type="number" min="0" step="1" style="width:90px"></label>""")
 
 # ---------------------------------------------------------------- storefront page: cards wide enough for their longest line
 s = rep(s, "rows = Math.ceil(order.length / cols), W = 290, H = 80 + 28 * heads.length, pad = 16;",

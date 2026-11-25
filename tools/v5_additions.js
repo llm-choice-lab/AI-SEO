@@ -24,17 +24,25 @@ E07,PocketBook InkPad Color,7.8 inches,Color E Ink,"300 PPI B&W, 150 PPI color",
 E08,PocketBook Era,7 inches,E Ink Carta 1200,300 PPI,16 GB,Waterproof (IPX8),Up to 4 weeks,228 g,Yes,No,$219,4.5,1000,E-Reader
 E09,PocketBook Era Color,7 inches,Color E Ink,"300 PPI B&W, 150 PPI color",32 GB,Waterproof (IPX8),Up to 4 weeks,235 g,Yes,No,$259,4.5,1000,E-Reader
 E10,Nook GlowLight 4 Plus,7.8 inches,E Ink Carta,300 PPI,32 GB,Waterproof (IPX7),Up to 4 weeks,285 g,Yes,No,$199,4.5,1000,E-Reader`;
-const S3_MODELS = [['openai/gpt-4o-2024-11-20', 'GPT-4o (2024-11-20)'], ['openai/gpt-4o-mini', 'GPT-4o mini'], ['openai/gpt-6-luna', 'GPT-6 Luna'],
-  ['google/gemini-2.5-flash-lite', 'Gemini 2.5 Flash-Lite'], ['google/gemini-3.1-flash-lite', 'Gemini 3.1 Flash-Lite'],
-  ['qwen/qwen3.5-flash-02-23', 'Qwen 3.5 Flash'], ['qwen/qwen3.7-flash', 'Qwen 3.7 Flash'], ['qwen/qwen3.8-flash', 'Qwen 3.8 Flash'],
-  ['anthropic/claude-haiku-5.5', 'Claude Haiku 5.5']];
+// Starting lineup on the three providers Sam has keys for (OpenAI, Anthropic, Google): 3 models from each.
+// pin/pout = list price in US$ per million input/output tokens, used to count spend (direct APIs don't report cost). Edit any time.
+const S3_MODELS = [
+  { provider: 'openai', model: 'gpt-4o-2024-11-20', label: 'GPT-4o (2024-11-20)', pin: 2.5, pout: 10 },
+  { provider: 'openai', model: 'gpt-4o-mini', label: 'GPT-4o mini', pin: 0.15, pout: 0.6 },
+  { provider: 'openai', model: 'gpt-6-luna', label: 'GPT-6 Luna', pin: 0.1, pout: 0.5 },
+  { provider: 'anthropic', model: 'claude-haiku-5-5', label: 'Claude Haiku 5.5', pin: 0.1, pout: 0.5 },
+  { provider: 'anthropic', model: 'claude-haiku-4-5', label: 'Claude Haiku 4.5', pin: 1, pout: 5 },
+  { provider: 'anthropic', model: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5', pin: 2, pout: 10 },
+  { provider: 'google', model: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite', pin: 0.1, pout: 0.4 },
+  { provider: 'google', model: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite', pin: 0.25, pout: 1.5 },
+  { provider: 'google', model: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite', pin: 0.3, pout: 2.5 }];
 function loadStudy3() {
   S.study = { product: 'e-reader', attrs: JSON.parse(JSON.stringify(S3_ATTRS)), iterations: 500, seed: 20261124, counterbalance: true };
   S.val = { headers: ['Name'], products: [] }; setValFromCSV(S3_VAL, true);
   S.tasks = { ...S.tasks, conjoint: true, ranking: true, rankRuns: 20, store: true, storeTrials: 1000, storeMode: 'image', cols: 5 };
   S.design = E.pairDesign(S.study.attrs, 500, 20261124); S.fits = {};
   S.projName = 'Study 3 – e-readers (conjoint → ACES storefront)';
-  if (!S.models.length) S3_MODELS.forEach(([id, label]) => S.models.push({ provider: 'openrouter', model: id, label }));
+  if (!S.models.length || confirmV5(`Replace the ${S.models.length} model(s) on page 4 with the Study 3 lineup (3 OpenAI, 3 Claude, 3 Gemini)?`)) S.models = S3_MODELS.map(m => ({ ...m }));
   save(); syncAll(); }
 
 // ---------- one storefront trial, v3 method, on any product set (main run uses v3's own code path) ----------
@@ -139,9 +147,20 @@ function syncV5() { const d = DEFAULT().settings; Object.keys(d).forEach(k => { 
   $('runSize').value = S.settings.runSize; $('runSize').onchange = e => { S.settings.runSize = e.target.value; save(); renderProgress(); };
   $('reasoning').value = S.settings.reasoning ?? ''; $('reasoning').onchange = e => { S.settings.reasoning = e.target.value; save(); };
   $('runValidation').onclick = runValidation; }
-setInterval(() => { const el = $('spendLine'); if (el) el.textContent = `Spent so far (reported by OpenRouter): $${spent().toFixed(3)}${+S.settings.spendCap > 0 ? ` of the $${(+S.settings.spendCap).toFixed(2)} cap` : ''}.`; }, 1500);
+setInterval(() => { const el = $('spendLine'); if (!el) return; const pr = projectFull();
+  el.textContent = `Spent so far: $${spent().toFixed(3)}${+S.settings.spendCap > 0 ? ` of the $${(+S.settings.spendCap).toFixed(2)} cap` : ''}.` + (pr.tot > 0 ? ` Projected cost of a full run, from the calls so far: about $${pr.tot.toFixed(2)}${pr.missing.length ? ` (not counting ${pr.missing.length} model(s) with no calls yet)` : ''}.` : ''); }, 1500);
 
 // v3's storefront cards were a fixed 290 px wide, so long values ran into the next card. Width now fits the longest line.
 function cardWidth(order, heads) { const g = document.createElement('canvas').getContext('2d'); let w = 0;
   order.forEach(p => heads.forEach(h => { g.font = '17px Arial'; const a = g.measureText(h + ': ').width; g.font = 'bold 17px Arial'; w = Math.max(w, a + g.measureText(String(p.display[h] ?? '')).width); }));
   return Math.max(290, Math.ceil(w + 32)); }
+
+function confirmV5(msg) { try { return window.confirm(msg); } catch (e) { return true; } }
+// Cost of a call from its tokens when the API doesn't report cost (OpenAI, Anthropic and Google direct)
+function costFromTokens(m, inTok, outTok) { if (m.pin == null || m.pout == null || inTok == null) return null; return ((+inTok || 0) * m.pin + (+outTok || 0) * m.pout) / 1e6; }
+// Full-run projection from what each model has cost so far, per kind of call
+function projectFull() { const z = { conjoint: (S.design ? S.design.length : 0) * (S.study.counterbalance ? 2 : 1), ranking: +S.tasks.rankRuns || 0, store: +S.tasks.storeTrials || 0 }; let tot = 0, missing = [];
+  units().filter(u => u.m.provider !== 'import').forEach(u => { const R = resOf(u); let t = 0, ok = true;
+    ['conjoint', 'ranking', 'store'].forEach(k => { if (k === 'conjoint' && !S.tasks.conjoint || k === 'ranking' && !S.tasks.ranking || k === 'store' && !S.tasks.store) return; const v = Object.values(R[k] || {}).filter(x => x.cost != null); if (!v.length) { ok = false; return; } t += z[k] * v.reduce((s, x) => s + x.cost, 0) / v.length; });
+    if (ok) tot += t; else missing.push(u.label); });
+  return { tot, missing }; }
