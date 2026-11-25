@@ -58,7 +58,7 @@ canvas.store{max-width:100%;border:1px solid var(--line);border-radius:6px}
 #tip{display:none;position:absolute;z-index:99;max-width:360px;background:#1d1d1f;color:#f2f2f2;padding:10px 12px;border-radius:8px;font-size:12.5px;line-height:1.45;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .navrow{display:flex;justify-content:space-between;margin:6px 0 30px}
 td input{padding:4px 6px}</style></head><body>
-<header><h1>LLM Conjoint Lab</h1><span class="sub">v5.2 · build a study, run it on many AI models at once, check whether each model's conjoint predicts what it actually does</span></header>
+<header><h1>LLM Conjoint Lab</h1><span class="sub">v5.3 · build a study, run it on many AI models at once, check whether each model's conjoint predicts what it actually does</span></header>
 <nav id="tabs">
   <button data-t="study" class="on"><span class="n">1</span>Study</button>
   <button data-t="products"><span class="n">2</span>Products</button>
@@ -827,14 +827,14 @@ function buildTasks(u, phase) { const R = resOf(u), T = [], z = sizes();
 async function doTask(u, t) { const R = resOf(u), ctl = run.ctl[u.key];
   if (t.kind === 'conjoint') { const ct = conjointTask(t.pair, t.order); let res = await callRetry(u, ct.prompt, null, ct, ctl), p = E.parseFirstSecond(res.text), raw2 = '';
     if (!p.answer && S.settings.reask) { const r2 = await callRetry(u, ct.prompt, null, ct, ctl); raw2 = r2.text; p = E.parseFirstSecond(r2.text); }
-    R.conjoint[t.id] = { pair: t.pair.pair, order: t.order, answer: p.answer, reason: p.reason, raw: res.text, raw2, served: res.served, ms: res.ms, tin: res.inTok, tout: res.outTok, cost: res.cost }; return !!p.answer; }
+    R.conjoint[t.id] = { at: new Date().toISOString(), pair: t.pair.pair, order: t.order, answer: p.answer, reason: p.reason, raw: res.text, raw2, served: res.served, ms: res.ms, tin: res.inTok, tout: res.outTok, cost: res.cost }; return !!p.answer; }
   if (t.kind === 'ranking') { const res = await callRetry(u, E.rankingPrompt(S.val.products, showHeaders()), null, { type: 'ranking', products: S.val.products }, ctl); const pr = E.parseRanking(res.text, S.val.products.map(p => p.name));
     R.ranking[t.id] = { ranking: pr.ranking, valid: pr.valid, warnings: pr.warnings.join('; '), reasoning: pr.reasoning, raw: res.text, served: res.served, cost: res.cost }; return pr.valid; }
   const page = storePage(t.id), names = S.val.products.map(p => p.name), image = S.tasks.storeMode === 'image';
   const res = await callRetry(u, image ? E.storefrontImagePrompt(S.study.product) : E.storefrontTextPrompt(S.study.product, page, showHeaders()), image ? drawPage(page) : null, { type: 'store', products: page, image }, ctl);
   const pc = E.parseChoiceName(res.text, names); let mis = null, detail = '';
   if (image && pc.json?.cards) { mis = 0; const notes = []; page.forEach(p => { const c = pc.json.cards.find(x => E.normLevel(x.name) === E.normLevel(p.name)); if (!c) { mis++; notes.push(p.name + ' missing'); return; } showHeaders().slice(1).forEach(h => { const k = Object.keys(c).find(z => E.normLevel(z) === E.normLevel(h)); if (E.normLevel(k ? c[k] : '') !== E.normLevel(p.display[h])) { mis++; notes.push(`${p.name} ${h}: "${k ? c[k] : '—'}"`); } }); }); detail = notes.join('; '); }
-  R.store[t.id] = { order: page.map(p => p.name).join(' | '), choice: pc.choice, position: pc.choice ? page.findIndex(p => p.name === pc.choice) + 1 : null, misreads: mis, misread_detail: detail, raw: res.text, served: res.served, cost: res.cost }; return !!pc.choice; }
+  R.store[t.id] = { order: page.map(p => p.name).join(' | '), choice: pc.choice, position: pc.choice ? page.findIndex(p => p.name === pc.choice) + 1 : null, misreads: mis, misread_detail: detail, raw: res.text, served: res.served, cost: res.cost, at: new Date().toISOString() }; return !!pc.choice; }
 function spent() { let c = 0; Object.values(S.results).forEach(R => { ['conjoint', 'ranking', 'store'].forEach(k => Object.values(R[k] || {}).forEach(x => { c += x.cost || 0; })); Object.values(R.validation?.trials || {}).forEach(x => { c += x.cost || 0; }); }); return c; }
 let capWarned = false;
 async function workPhase(u, tasks, st, ctl, fn) { let next = 0, errRun = 0;
@@ -846,6 +846,7 @@ async function workPhase(u, tasks, st, ctl, fn) { let next = 0, errRun = 0;
 async function runUnit(u) { const ctl = run.ctl[u.key] = { stop: false }, first = buildTasks(u, 'first'), st = run.stats[u.key] = { total: first.length + buildTasks(u, 'store').length, done: 0, ok: 0, bad: 0, err: 0, status: 'running' };
   log(`${u.label}: ${first.length} conjoint/ranking calls to go`);
   await workPhase(u, first, st, ctl, t => doTask(u, t)); save();
+  if (S.tasks.conjoint && !S.tasks.store && S.val.products.length && !ctl.stop && !globalStop) await lockPrediction(u);   // conjoint-only run: lock now, so the fingerprint can be posted before the storefront
   if (S.tasks.store && !ctl.stop && !globalStop) {
     const locked = !S.tasks.conjoint || await lockPrediction(u);
     if (!locked) log(`${u.label}: ⚠ the conjoint can't be fitted yet (too few or one-sided answers), so no prediction is locked. The storefront runs anyway; run more pairs before trusting the comparison.`);
@@ -1007,7 +1008,7 @@ async function storeTrialV3(u, trial, products, store, ctl, salt) {
   const res = await callRetry(u, image ? E.storefrontImagePrompt(S.study.product) : E.storefrontTextPrompt(S.study.product, page, showHeaders()), image ? drawPage(page) : null, { type: 'store', products: page, image }, ctl);
   const pc = E.parseChoiceName(res.text, names); let mis = null, detail = '';
   if (image && pc.json?.cards) { mis = 0; const notes = []; page.forEach(p => { const c = pc.json.cards.find(x => E.normLevel(x.name) === E.normLevel(p.name)); if (!c) { mis++; notes.push(p.name + ' missing'); return; } showHeaders().slice(1).forEach(h => { const k = Object.keys(c).find(z => E.normLevel(z) === E.normLevel(h)); if (E.normLevel(k ? c[k] : '') !== E.normLevel(p.display[h])) { mis++; notes.push(`${p.name} ${h}: "${k ? c[k] : '—'}"`); } }); }); detail = notes.join('; '); }
-  store[trial] = { order: page.map(p => p.name).join(' | '), choice: pc.choice, position: pc.choice ? page.findIndex(p => p.name === pc.choice) + 1 : null, misreads: mis, misread_detail: detail, raw: res.text, served: res.served, cost: res.cost };
+  store[trial] = { order: page.map(p => p.name).join(' | '), choice: pc.choice, position: pc.choice ? page.findIndex(p => p.name === pc.choice) + 1 : null, misreads: mis, misread_detail: detail, raw: res.text, served: res.served, cost: res.cost, at: new Date().toISOString() };
   return !!pc.choice; }
 
 // ---------- lock the conjoint prediction before the storefront ----------
@@ -1020,7 +1021,7 @@ async function lockPrediction(u) { const R = resOf(u), rows = conjointRows(u), n
   const coefs = fit.coefs.map(c => [c.term, c.B]);
   const payload = JSON.stringify({ model: u.m.model, condition: u.c.label, answers: n, coefs, predicted });
   R.lock = { at: new Date().toISOString(), n, hash: await sha256(payload), predicted, coefs, payload }; R.locks = [...(R.locks || []), { at: R.lock.at, n, hash: R.lock.hash }];
-  log(`${u.label}: prediction locked from ${n} answers · sha256 ${R.lock.hash.slice(0, 12)}…`); save(); return true; }
+  log(`${u.label}: prediction locked from ${n} answers · sha256 ${R.lock.hash}`); save(); return true; }
 
 // ---------- validation: one product best on every attribute with a clear direction ----------
 function validationProducts() { const P = JSON.parse(JSON.stringify(S.val.products)); if (P.length < 2) return {};
@@ -1060,8 +1061,13 @@ function acesClogit(rows, P) { const cols = +S.tasks.cols || 5, ids = P.map(p =>
       const ci = s.alts.findIndex(a => a.id === s.chosen); L += Math.log(pr[ci]); const xb = new Array(k).fill(0); s.alts.forEach((a, i) => a.x.forEach((v, j) => xb[j] += pr[i] * v));
       s.alts[ci].x.forEach((v, j) => g[j] += v - xb[j]); s.alts.forEach((a, i) => { for (let j = 0; j < k; j++) for (let l = 0; l < k; l++) H[j][l] += pr[i] * (a.x[j] - xb[j]) * (a.x[l] - xb[l]); }); });
     return { g, L }; };
-  for (let it = 0; it < 100; it++) { const { g, L } = step(); const Hi = E.inv ? E.inv(H) : invMat(H); if (!Hi) return { error: 'Position model could not be estimated (a product or position is perfectly predictive).' };
-    b = b.map((v, j) => v + Hi[j].reduce((t, h, l) => t + h * g[l], 0)); if (Math.abs(L - ll) < 1e-10) { ll = L; break; } ll = L; }
+  const llAt = bb => D.reduce((L, s) => { const eta = s.alts.map(a => a.x.reduce((t, v, j) => t + v * bb[j], 0)), mx = Math.max(...eta), Z = eta.reduce((z, e) => z + Math.exp(e - mx), 0);
+    return L + eta[s.alts.findIndex(a => a.id === s.chosen)] - mx - Math.log(Z); }, 0);
+  // Newton-Raphson with step-halving: a full step can overshoot when a product is chosen only once or twice
+  for (let it = 0; it < 200; it++) { const { g, L } = step(); const Hi = invMat(H); if (!Hi) return { error: 'Position model could not be estimated (a product or position is perfectly predictive).' };
+    const dir = Hi.map(r => r.reduce((t, h, l) => t + h * g[l], 0)); let lam = 1, nb, nl;
+    for (let h = 0; h < 40; h++) { nb = b.map((v, j) => v + lam * dir[j]); nl = llAt(nb); if (Number.isFinite(nl) && nl >= L - 1e-12) break; lam /= 2; }
+    b = nb; if (Math.abs(nl - L) < 1e-12) { ll = nl; break; } ll = nl; }
   step(); const V = invMat(H), ll0 = D.reduce((t, s) => t + Math.log(1 / s.alts.length), 0);
   const terms = vars.map((v, j) => { const se = V ? Math.sqrt(V[j][j]) : NaN, z = b[j] / se; return { term: v, B: b[j], SE: se, z, p: 2 * (1 - normCdfV5(Math.abs(z))), OR: Math.exp(b[j]) }; });
   return { terms, n: D.length, ll, ll0, r2: 1 - ll / ll0, ref: `${keepIds[0]}, bottom row, last column`, never: ids.filter(i => !chosen.has(i)) }; }
@@ -1144,6 +1150,7 @@ Want to see it work first? The demo uses simulated models, so it needs no API ke
 <b>Prediction vs storefront</b>: whether its conjoint predicted what it actually picked (ρ near 1 = yes).<br>
 <b>Compare models</b>: which preferences hold across every model.` },
   { tab: 'data', el: '#expGo', title: '8 · Export', body: 'Download everything: Excel or CSV for each part, SPSS syntax to rerun the analysis yourself, or a PDF report. Save the project file to share or reload a study later.' },
+  { tab: 'verify', el: '#verifyGo', title: '9 · Verify', body: 'Check every result outside this tool. The verification pack holds the raw data, the locked predictions and ready-to-run <b>SPSS, R and Python</b> scripts. They re-fit the conjoint, confirm the prediction was locked before the storefront and was not changed, and recompute the storefront comparison, printing PASS or CHECK for each.' },
   { title: "That's it", body: 'Press <b>? Tour</b> at the top any time to see this again, or <b>▶ Demo</b> to watch a full run on simulated models.', demo: true }
 ];
 
@@ -1283,7 +1290,169 @@ function launchInit() {
   $('autoFull').checked = !!S.settings.autoFull; $('autoFull').onchange = e => { S.settings.autoFull = e.target.checked; save(); };
   const h = $('gHead'); if (h && !$('launchHead')) { const b = document.createElement('button'); b.className = 'b'; b.id = 'launchHead'; b.textContent = '▶ Launch study'; b.onclick = launchStudy; h.appendChild(b); } }
 
-(async () => { await IDB.open(); const s = await IDB.get('state'); if (s) S = { ...DEFAULT(), ...s }; presets = (await IDB.get('presets')) || {}; try { keys = JSON.parse(localStorage.getItem('conjointLabV5.keys') || '{}'); } catch (e) {} renderPresets(); syncAll(); guideInit(); launchInit(); })();
+const VERIFY_PY = "\"\"\"LLM Conjoint Lab: independent verification (Python).\n\nRecomputes the tool's results from the raw data in a verification pack, with standard statistics packages,\nand prints PASS or CHECK for each check. Nothing here uses the tool's code.\n\n  Check A  conjoint: binary logistic regression of ChoseFirst on the d_ differences (with a constant), per run\n  Check B  locked prediction: SHA-256 of each locks/*.json file, its coefficients vs Check A, and its\n           predicted shares re-computed from those coefficients and data/products.csv\n  Check C  conjoint vs storefront: observed shares, Spearman rho, mean share gap, top pick, and the\n           position model (conditional logit: product + page row + page column, one stratum per trial)\n\nUsage (from the unzipped pack folder, or pass its path):\n    pip install pandas numpy scipy statsmodels\n    python scripts/verify.py [path/to/verification_pack]\n\"\"\"\nimport hashlib, json, sys\nfrom pathlib import Path\nimport numpy as np\nimport pandas as pd\nfrom scipy.stats import spearmanr\nimport statsmodels.api as sm\nfrom statsmodels.discrete.conditional_models import ConditionalLogit\n\nTOL_COEF, TOL_SHARE, TOL_RHO, TOL_CLOGIT = 1e-4, 1e-6, 1e-6, 1e-3\n\npack = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent.parent\nread = lambda p: pd.read_csv(pack / p, encoding='utf-8-sig', keep_default_na=False, na_values=[''])\nlines, status = [], {'PASS': 0, 'CHECK': 0}\ndef out(s=''): print(s); lines.append(s)\ndef verdict(ok, what, detail=''):\n    k = 'PASS' if ok else 'CHECK'; status[k] += 1; out(f'  [{k}] {what}' + (f'  ({detail})' if detail else ''))\n\nmanifest = json.loads((pack / 'manifest.json').read_text(encoding='utf-8'))\nconj, prods = read('data/conjoint_long.csv'), read('data/products.csv')\ncoefs_tool = read('tool_results/coefficients.csv')\nlocks = read('data/locks.csv') if (pack / 'data/locks.csv').stat().st_size > 5 else pd.DataFrame()\ntrials = read('data/storefront_trials.csv') if (pack / 'data/storefront_trials.csv').stat().st_size > 5 else pd.DataFrame()\nlong = read('data/storefront_long.csv') if (pack / 'data/storefront_long.csv').stat().st_size > 5 else pd.DataFrame()\ncomp = read('tool_results/storefront_comparison.csv') if (pack / 'tool_results/storefront_comparison.csv').stat().st_size > 5 else pd.DataFrame()\nsumm = read('tool_results/summary.csv')\nclog_tool = read('tool_results/storefront_clogit.csv') if (pack / 'tool_results/storefront_clogit.csv').stat().st_size > 5 else pd.DataFrame()\n\ndvars = [f['difference'] for f in manifest['features']]\nxvars = [f['product'] for f in manifest['features']]\nproducts = list(prods['Product'].astype(str))\ncols = int(manifest.get('storefrontColumns', 5))\n\nout(f\"LLM Conjoint Lab verification (Python) \u00b7 pack generated {manifest['generated']} \u00b7 {manifest['project']}\")\nout(f\"pandas {pd.__version__}, statsmodels {sm.__version__}\")\n\nfor run in manifest['runs']:\n    rid = run['RunID']; out(); out(f\"=== {run['label']}  ({run['provider']} \u00b7 {run['model']}) ===\")\n    d = conj[conj['RunID'] == rid]\n    own = None\n    # ---------------- Check A ----------------\n    if len(d):\n        X = sm.add_constant(d[dvars].astype(float), has_constant='add'); y = d['ChoseFirst'].astype(int)\n        fit = sm.Logit(y, X).fit(disp=0, method='newton', maxiter=200, tol=1e-12)\n        own = pd.DataFrame({'Variable': ['Constant'] + dvars, 'B': fit.params.values, 'SE': fit.bse.values})\n        t = coefs_tool[coefs_tool['RunID'] == rid].merge(own, on='Variable', suffixes=('_tool', '_own'))\n        db, ds = (t['B_tool'] - t['B_own']).abs().max(), (t['SE_tool'] - t['SE_own']).abs().max()\n        out(f\"  Check A \u00b7 conjoint, {len(d)} answers. Largest difference: B {db:.2e}, SE {ds:.2e}\")\n        for _, r in t.iterrows(): out(f\"      {r['Variable'][:38]:38s} tool {r['B_tool']:12.6f}  own {r['B_own']:12.6f}\")\n        verdict(len(t) == len(own) and db < TOL_COEF and ds < TOL_COEF, 'A: coefficients and SEs match the tool')\n    else: out('  Check A \u00b7 no conjoint answers for this run (skipped)')\n    # ---------------- Check B ----------------\n    L = locks[locks['RunID'] == rid] if len(locks) else locks\n    pred = None\n    if len(L):\n        L = L.iloc[0]; raw = (pack / L['PayloadFile']).read_bytes()\n        verdict(hashlib.sha256(raw).hexdigest() == L['SHA256'], 'B1: the lock file is unchanged (SHA-256 matches)', f\"locked {L['LockedAt']} from {L['Answers']} answers\")\n        payload = json.loads(raw.decode('utf-8'))\n        B = dict(zip(['Constant'] + dvars, [c[1] for c in payload['coefs']]))\n        if own is not None and int(L['Answers']) == len(d):\n            gap = max(abs(B[v] - b) for v, b in zip(own['Variable'], own['B']))\n            verdict(gap < TOL_COEF, 'B2: locked coefficients equal your own re-fit of all conjoint answers', f'largest gap {gap:.2e}')\n        elif own is not None:\n            out(f\"  [NOTE] B2: the lock used {L['Answers']} answers and the data now has {len(d)} (e.g. locked after a pilot), so B2 is skipped\")\n        U = prods[xvars].astype(float).values @ np.array([B[v] for v in dvars])\n        pred = np.exp(U - U.max()); pred /= pred.sum()\n        saved = np.array([p['share'] for p in payload['predicted']])\n        verdict(np.abs(pred - saved).max() < TOL_SHARE, 'B3: predicted shares re-computed from the locked coefficients match the lock file', f'largest gap {np.abs(pred - saved).max():.2e}')\n        hist = read('data/lock_history.csv') if (pack / 'data/lock_history.csv').exists() else pd.DataFrame()\n        if len(trials) and len(hist):\n            tt = trials[(trials['RunID'] == rid) & trials['At'].notna() & (trials['At'] != '')]\n            first_lock = str(hist[hist['RunID'] == rid]['LockedAt'].min())\n            if len(tt): verdict(str(tt['At'].min()) >= first_lock, 'B4: a prediction was locked before the first storefront trial',\n                                f\"first lock {first_lock}, first trial {tt['At'].min()}; later locks only add conjoint answers\")\n    else: out('  Check B \u00b7 no locked prediction for this run (skipped)')\n    # ---------------- Check C ----------------\n    T = trials[(trials['RunID'] == rid)] if len(trials) else trials\n    if len(T) and pred is not None:\n        v = T[T['Choice'].notna() & (T['Choice'] != '')]\n        obs = np.array([(v['Choice'].astype(str) == p).mean() for p in products])\n        c = comp[comp['RunID'] == rid].set_index('Product').reindex(products)\n        verdict(np.abs(obs - c['ObservedShare'].values).max() < TOL_SHARE, f'C1: observed storefront shares ({len(v)} valid trials) match the tool')\n        rho = spearmanr(pred, obs).statistic; s = summ[summ['RunID'] == rid].iloc[0]\n        mae = np.abs(pred - obs).mean(); top_p, top_o = products[int(np.argmax(pred))], products[int(np.argmax(obs))]\n        out(f\"  Locked prediction vs storefront: rho {rho:.4f}, mean share gap {mae:.4f}, top predicted {top_p}, top observed {top_o}\")\n        verdict(abs(rho - float(s['Rho_LockedPrediction_vs_Storefront'])) < TOL_RHO and abs(mae - float(s['MeanAbsShareGap'])) < TOL_SHARE\n                and top_p == str(s['TopPredicted']) and top_o == str(s['TopObserved']), 'C2: rho, share gap and top picks match the tool')\n        # position model: products never chosen are dropped (as in ACES); reference = first chosen product in list order, bottom row, last column\n        g = long[long['RunID'] == rid].copy(); g['Product'] = g['Product'].astype(str)\n        ever = set(g.loc[g['Chosen'] == 1, 'Product']); keep = [p for p in products if p in ever]\n        g = g[g['Product'].isin(ever)]\n        nrows = int(long[long['RunID'] == rid]['PageRow'].max())\n        Xc = pd.DataFrame({f'fe_{p}': (g['Product'] == p).astype(float) for p in keep[1:]}, index=g.index)\n        for r in range(1, nrows): Xc[f'row_{r}'] = (g['PageRow'] == r).astype(float)\n        for k in range(1, cols): Xc[f'col_{k}'] = (g['PageCol'] == k).astype(float)\n        Xc = Xc.loc[:, Xc.std() > 0]\n        if len(keep) >= 2 and g['Trial'].nunique() >= 10:\n            cm = ConditionalLogit(g['Chosen'].astype(int), Xc, groups=g['Trial'])\n            with np.errstate(all='ignore'):   # rough fit first, then Newton from there (a product chosen once or twice can make Newton from zero overshoot)\n                cl = cm.fit(method='bfgs', maxiter=5000, gtol=1e-8, disp=0)\n                cl = cm.fit(start_params=cl.params.values, method='newton', maxiter=200, tol=1e-12, disp=0)\n            ct = clog_tool[clog_tool['RunID'] == rid].set_index('Term')\n            both = [k for k in Xc.columns if k in ct.index]\n            gap = max(abs(cl.params[k] - ct.loc[k, 'B']) for k in both) if both else np.inf\n            for k in both: out(f\"      {k:20s} tool {ct.loc[k, 'B']:10.4f}  own {cl.params[k]:10.4f}\")\n            verdict(len(both) == len(Xc.columns) and gap < TOL_CLOGIT, 'C3: position model (conditional logit) matches the tool', f'largest gap {gap:.2e}')\n        else: out('  [NOTE] C3: too few trials or only one product ever chosen; no position model')\n    else: out('  Check C \u00b7 no storefront trials or no locked prediction for this run (skipped)')\n\nout(); out(f\"SUMMARY: {status['PASS']} PASS, {status['CHECK']} CHECK\")\n(pack / 'verify_report_python.txt').write_text('\\n'.join(lines), encoding='utf-8')\nprint(f\"Report written to {pack / 'verify_report_python.txt'}\")\nsys.exit(1 if status['CHECK'] else 0)\n";
+const VERIFY_R = "# LLM Conjoint Lab: independent verification (R).\n# Recomputes the tool's results from the raw data in a verification pack and prints PASS or CHECK for each check.\n#   Check A  conjoint: glm(ChoseFirst ~ d_ differences, binomial) per run\n#   Check B  locked prediction: SHA-256 of each locks/*.json, its coefficients vs Check A, predicted shares re-computed\n#   Check C  conjoint vs storefront: observed shares, Spearman rho, mean share gap, top pick,\n#            and the position model survival::clogit(Chosen ~ product + row + column + strata(Trial))\n# Usage:  install.packages(c(\"survival\", \"jsonlite\", \"digest\"))\n#         Rscript scripts/verify.R [path/to/verification_pack]\n\nsuppressPackageStartupMessages({ library(survival); library(jsonlite); library(digest) })\nTOL_COEF <- 1e-4; TOL_SHARE <- 1e-6; TOL_RHO <- 1e-6; TOL_CLOGIT <- 1e-3\n\nargs <- commandArgs(trailingOnly = TRUE)\nif (length(args)) pack <- args[1] else {\n  f <- sub(\"^--file=\", \"\", grep(\"^--file=\", commandArgs(FALSE), value = TRUE))\n  pack <- if (length(f)) normalizePath(file.path(dirname(f), \"..\")) else getwd() }\nrd <- function(p) { fp <- file.path(pack, p); if (!file.exists(fp) || file.size(fp) < 6) return(data.frame())\n  read.csv(fp, fileEncoding = \"UTF-8-BOM\", stringsAsFactors = FALSE, check.names = FALSE, na.strings = \"\") }\nlines <- character(); npass <- 0; ncheck <- 0\nout <- function(...) { s <- paste0(...); cat(s, \"\\n\"); lines <<- c(lines, s) }\nverdict <- function(ok, what, detail = \"\") { ok <- isTRUE(ok); if (ok) npass <<- npass + 1 else ncheck <<- ncheck + 1\n  out(\"  [\", if (ok) \"PASS\" else \"CHECK\", \"] \", what, if (nchar(detail)) paste0(\"  (\", detail, \")\") else \"\") }\n\nmanifest <- fromJSON(file.path(pack, \"manifest.json\"))\nconj <- rd(\"data/conjoint_long.csv\"); prods <- rd(\"data/products.csv\"); coefs_tool <- rd(\"tool_results/coefficients.csv\")\nlocks <- rd(\"data/locks.csv\"); hist <- rd(\"data/lock_history.csv\"); trials <- rd(\"data/storefront_trials.csv\"); long <- rd(\"data/storefront_long.csv\")\ncomp <- rd(\"tool_results/storefront_comparison.csv\"); summ <- rd(\"tool_results/summary.csv\"); clog_tool <- rd(\"tool_results/storefront_clogit.csv\")\ndvars <- manifest$features$difference; xvars <- manifest$features$product\nproducts <- as.character(prods$Product); ncols <- as.integer(manifest$storefrontColumns)\n\nout(\"LLM Conjoint Lab verification (R) \u00b7 pack generated \", manifest$generated, \" \u00b7 \", manifest$project)\nout(R.version.string, \", survival \", as.character(packageVersion(\"survival\")))\n\nfor (i in seq_len(nrow(manifest$runs))) {\n  run <- manifest$runs[i, ]; rid <- run$RunID; out(\"\"); out(\"=== \", run$label, \"  (\", run$provider, \" \u00b7 \", run$model, \") ===\")\n  d <- conj[conj$RunID == rid, ]; own <- NULL\n  # ---------------- Check A ----------------\n  if (nrow(d)) {\n    fit <- glm(reformulate(dvars, \"ChoseFirst\"), family = binomial, data = d, control = glm.control(epsilon = 1e-14, maxit = 100))\n    own <- data.frame(Variable = c(\"Constant\", dvars), B = unname(coef(fit)), SE = unname(sqrt(diag(vcov(fit)))))\n    t <- merge(coefs_tool[coefs_tool$RunID == rid, ], own, by = \"Variable\", suffixes = c(\"_tool\", \"_own\"))\n    db <- max(abs(t$B_tool - t$B_own)); ds <- max(abs(t$SE_tool - t$SE_own))\n    out(sprintf(\"  Check A \u00b7 conjoint, %d answers. Largest difference: B %.2e, SE %.2e\", nrow(d), db, ds))\n    for (k in seq_len(nrow(t))) out(sprintf(\"      %-38s tool %12.6f  own %12.6f\", substr(t$Variable[k], 1, 38), t$B_tool[k], t$B_own[k]))\n    verdict(nrow(t) == nrow(own) && db < TOL_COEF && ds < TOL_COEF, \"A: coefficients and SEs match the tool\")\n  } else out(\"  Check A \u00b7 no conjoint answers for this run (skipped)\")\n  # ---------------- Check B ----------------\n  L <- if (nrow(locks)) locks[locks$RunID == rid, ] else locks; pred <- NULL\n  if (nrow(L)) {\n    L <- L[1, ]; raw <- readBin(file.path(pack, L$PayloadFile), \"raw\", file.size(file.path(pack, L$PayloadFile)))\n    verdict(digest(raw, algo = \"sha256\", serialize = FALSE) == L$SHA256, \"B1: the lock file is unchanged (SHA-256 matches)\",\n            paste0(\"locked \", L$LockedAt, \" from \", L$Answers, \" answers\"))\n    payload <- fromJSON(rawToChar(raw), simplifyVector = FALSE)\n    B <- setNames(sapply(payload$coefs, function(x) as.numeric(x[[2]])), c(\"Constant\", dvars))\n    if (!is.null(own) && as.integer(L$Answers) == nrow(d)) {\n      gap <- max(abs(B[own$Variable] - own$B)); verdict(gap < TOL_COEF, \"B2: locked coefficients equal your own re-fit of all conjoint answers\", sprintf(\"largest gap %.2e\", gap))\n    } else if (!is.null(own)) out(\"  [NOTE] B2: the lock used \", L$Answers, \" answers and the data now has \", nrow(d), \" (e.g. locked after a pilot), so B2 is skipped\")\n    U <- as.matrix(prods[, xvars]) %*% B[dvars]; pred <- as.vector(exp(U - max(U)) / sum(exp(U - max(U))))\n    saved <- sapply(payload$predicted, function(p) p$share)\n    verdict(max(abs(pred - saved)) < TOL_SHARE, \"B3: predicted shares re-computed from the locked coefficients match the lock file\", sprintf(\"largest gap %.2e\", max(abs(pred - saved))))\n    if (nrow(trials) && nrow(hist)) { tt <- trials[trials$RunID == rid & !is.na(trials$At), ]; fl <- min(hist$LockedAt[hist$RunID == rid])\n      if (nrow(tt)) verdict(min(tt$At) >= fl, \"B4: a prediction was locked before the first storefront trial\", paste0(\"first lock \", fl, \", first trial \", min(tt$At))) }\n  } else out(\"  Check B \u00b7 no locked prediction for this run (skipped)\")\n  # ---------------- Check C ----------------\n  Tr <- if (nrow(trials)) trials[trials$RunID == rid, ] else trials\n  if (nrow(Tr) && !is.null(pred)) {\n    v <- Tr[!is.na(Tr$Choice) & Tr$Choice != \"\", ]\n    obs <- sapply(products, function(p) mean(as.character(v$Choice) == p))\n    cc <- comp[comp$RunID == rid, ]; cc <- cc[match(products, as.character(cc$Product)), ]\n    verdict(max(abs(obs - cc$ObservedShare)) < TOL_SHARE, sprintf(\"C1: observed storefront shares (%d valid trials) match the tool\", nrow(v)))\n    rho <- cor(pred, obs, method = \"spearman\"); mae <- mean(abs(pred - obs)); s <- summ[summ$RunID == rid, ][1, ]\n    tp <- products[which.max(pred)]; to <- products[which.max(obs)]\n    out(sprintf(\"  Locked prediction vs storefront: rho %.4f, mean share gap %.4f, top predicted %s, top observed %s\", rho, mae, tp, to))\n    verdict(abs(rho - s$Rho_LockedPrediction_vs_Storefront) < TOL_RHO && abs(mae - s$MeanAbsShareGap) < TOL_SHARE &&\n            tp == as.character(s$TopPredicted) && to == as.character(s$TopObserved), \"C2: rho, share gap and top picks match the tool\")\n    g <- long[long$RunID == rid, ]; g$Product <- as.character(g$Product); nrows <- max(g$PageRow)\n    ever <- unique(g$Product[g$Chosen == 1]); keep <- products[products %in% ever]; g <- g[g$Product %in% ever, ]\n    if (length(keep) >= 2 && length(unique(g$Trial)) >= 10) {\n      g$Product <- factor(g$Product, levels = keep)\n      g$Row <- relevel(factor(g$PageRow), ref = as.character(nrows)); g$Col <- relevel(factor(g$PageCol), ref = as.character(ncols))\n      cl <- clogit(Chosen ~ Product + Row + Col + strata(Trial), data = g, method = \"exact\")\n      b <- coef(cl); names(b) <- sub(\"^Product\", \"fe_\", sub(\"^Row\", \"row_\", sub(\"^Col\", \"col_\", names(b))))\n      ct <- clog_tool[clog_tool$RunID == rid, ]; both <- intersect(names(b), ct$Term); b <- b[!is.na(b)]\n      gap <- if (length(both)) max(abs(b[both] - ct$B[match(both, ct$Term)])) else Inf\n      for (k in both) out(sprintf(\"      %-20s tool %10.4f  own %10.4f\", k, ct$B[ct$Term == k], b[k]))\n      verdict(length(both) == length(b) && gap < TOL_CLOGIT, \"C3: position model (conditional logit) matches the tool\", sprintf(\"largest gap %.2e\", gap))\n    } else out(\"  [NOTE] C3: too few trials or only one product ever chosen; no position model\")\n  } else out(\"  Check C \u00b7 no storefront trials or no locked prediction for this run (skipped)\")\n}\nout(\"\"); out(sprintf(\"SUMMARY: %d PASS, %d CHECK\", npass, ncheck))\nwriteLines(lines, file.path(pack, \"verify_report_R.txt\"), useBytes = TRUE)\ncat(\"Report written to\", file.path(pack, \"verify_report_R.txt\"), \"\\n\")\nquit(status = if (ncheck) 1 else 0)\n";
+// ================= VERIFY: outside-the-tool checks =================
+// Page 9 "Verify" + "Download verification pack" (a .zip): raw data, the locked prediction files, the tool's own results
+// at full precision, and SPSS / R / Python scripts that recompute everything from the raw data.
+// VERIFY_PY and VERIFY_R are filled in by tools/patch_v5.py from verify/verify.py and verify/verify.R.
+
+const runId = u => E.safe(u.label) || 'run';
+const xName = f => 'x_' + f.name.slice(2);   // product-level column for d_ feature f
+
+function vRows() {
+  const U = units().filter(u => u.m.provider !== 'import' || conjointRows(u).length), feats = E.features(S.study.attrs), P = S.val.products, cols = Math.max(1, +S.tasks.cols || 5);
+  const conj = [], trials = [], long = [], locks = [], hist = [], lockFiles = [], coefs = [], comp = [], summ = [], clog = [];
+  U.forEach(u => { const id = runId(u), R = S.results[u.key] || {}, a = analyseUnit(u);
+    conjointRows(u).forEach(r => { if (r.choice !== 'first' && r.choice !== 'second') return; const x1 = E.encodeProduct(r.p1, S.study.attrs), x2 = E.encodeProduct(r.p2, S.study.attrs); if (x1.some(isNaN) || x2.some(isNaN)) return;
+      const o = { Run: u.label, RunID: id, Model: u.m.model, Pair: r.pair, Order: r.order || 'AB', ChoseFirst: r.choice === 'first' ? 1 : 0 };
+      feats.forEach((f, j) => o[f.name] = x1[j] - x2[j]); S.study.attrs.forEach(at => { o[E.safe(at.name) + '_P1'] = r.p1[at.name]?.display ?? ''; o[E.safe(at.name) + '_P2'] = r.p2[at.name]?.display ?? ''; }); conj.push(o); });
+    Object.entries(R.store || {}).sort((p, q) => +p[0] - +q[0]).forEach(([t, v]) => { trials.push({ RunID: id, Run: u.label, Trial: +t, Choice: v.choice ?? '', Position: v.position ?? '', Misreads: v.misreads ?? '', At: v.at ?? '', PageOrder: v.order ?? '' });
+      if (v.choice && v.order) v.order.split(' | ').forEach((pid, i) => long.push({ RunID: id, Trial: +t, Product: pid, Position: i + 1, PageRow: Math.floor(i / cols) + 1, PageCol: i % cols + 1, Chosen: pid === v.choice ? 1 : 0 })); });
+    if (R.lock) { locks.push({ RunID: id, Run: u.label, LockedAt: R.lock.at, Answers: R.lock.n, SHA256: R.lock.hash, PayloadFile: `locks/${id}.json` }); lockFiles.push([`locks/${id}.json`, R.lock.payload]); }
+    (R.locks || []).forEach(l => hist.push({ RunID: id, LockedAt: l.at, Answers: l.n, SHA256: l.hash }));
+    if (a.fit) a.fit.coefs.forEach((c, j) => coefs.push({ RunID: id, Run: u.label, Variable: j === 0 ? 'Constant' : feats[j - 1].name, Term: c.term, B: c.B, SE: c.SE, p: c.p }));
+    if (a.lockedPred && a.share) { P.forEach((p, i) => comp.push({ RunID: id, Product: p.name, LockedPredictedShare: a.lockedPred[i], ObservedShare: a.share[i] }));
+      summ.push({ RunID: id, Run: u.label, ConjointAnswers: a.fit?.n ?? '', LockedFromAnswers: R.lock?.n ?? '', StorefrontValidTrials: a.nStore ?? '', Rho_LockedPrediction_vs_Storefront: a.rhoLocked, MeanAbsShareGap: a.maeLocked, TopPredicted: a.topPred, TopObserved: a.topObs }); }
+    else if (a.fit) summ.push({ RunID: id, Run: u.label, ConjointAnswers: a.fit.n, LockedFromAnswers: R.lock?.n ?? '', StorefrontValidTrials: a.nStore ?? '', Rho_LockedPrediction_vs_Storefront: '', MeanAbsShareGap: '', TopPredicted: '', TopObserved: '' });
+    if (a.clogit?.terms) a.clogit.terms.forEach(t => clog.push({ RunID: id, Term: t.term, B: t.B, SE: t.SE })); });
+  const prods = P.map(p => { const x = E.encodeProduct(productForPrediction(p), S.study.attrs), o = { Product: p.name }; feats.forEach((f, j) => o[xName(f)] = x[j]); showHeaders().slice(1).forEach(h => o['Card_' + E.safe(h)] = p.display[h] ?? ''); return o; });
+  return { conj, trials, long, locks, hist, lockFiles, coefs, comp, summ, clog, prods, feats };
+}
+
+function spssVerify(feats) { const d = feats.map(f => f.name), x = feats.map(xName), q = s => `'${s}'`;
+  return `* Encoding: UTF-8.
+* LLM Conjoint Lab verification syntax (SPSS). Generated ${new Date().toISOString()}.
+* 1. Unzip the verification pack.  2. On the CD line below, put the folder where you unzipped it.  3. Run All.
+* Check A: conjoint coefficients.  Check C: storefront shares, rank correlation and position model.
+* Check B (the SHA-256 fingerprint) needs R or Python: SPSS cannot compute SHA-256.
+
+CD 'C:\\Users\\you\\Downloads\\verification_pack'.
+
+* ===================== CHECK A: conjoint (one logistic regression per run) =====================.
+GET DATA /TYPE=TXT /FILE='data/conjoint_long.csv' /ENCODING='UTF8' /DELIMITERS="," /QUALIFIER='"' /ARRANGEMENT=DELIMITED /FIRSTCASE=2 /VARIABLES=
+  Run A200 RunID A100 Model A200 Pair F8.0 Order A4 ChoseFirst F8.0
+${d.map(n => `  ${n} F20.10`).join('\n')}
+${S.study.attrs.map(a => `  ${E.safe(a.name)}_P1 A200 ${E.safe(a.name)}_P2 A200`).join('\n')}.
+SORT CASES BY RunID.
+SPLIT FILE SEPARATE BY RunID.
+LOGISTIC REGRESSION VARIABLES ChoseFirst WITH ${d.join(' ')}
+  /CRITERIA=ITERATE(50) CUT(.5).
+SPLIT FILE OFF.
+* Compare "Variables in the Equation" (B, S.E.) with tool_results/coefficients.csv. They should match to 4 decimals.
+
+* ===================== CHECK C: storefront =====================.
+* C1. Observed share of each product among valid storefront trials.
+GET DATA /TYPE=TXT /FILE='data/storefront_long.csv' /ENCODING='UTF8' /DELIMITERS="," /QUALIFIER='"' /ARRANGEMENT=DELIMITED /FIRSTCASE=2 /VARIABLES=
+  RunID A100 Trial F8.0 Product A100 Position F4.0 PageRow F4.0 PageCol F4.0 Chosen F8.0.
+DATASET NAME sf.
+SORT CASES BY RunID Product.
+SPLIT FILE SEPARATE BY RunID.
+MEANS TABLES=Chosen BY Product /CELLS=SUM COUNT.
+SPLIT FILE OFF.
+* Observed share = Sum of Chosen / number of valid trials. Compare with ObservedShare in tool_results/storefront_comparison.csv.
+
+* C2. Rank correlation between the locked prediction and the observed shares (tool's own numbers, to check its rho).
+GET DATA /TYPE=TXT /FILE='tool_results/storefront_comparison.csv' /ENCODING='UTF8' /DELIMITERS="," /QUALIFIER='"' /ARRANGEMENT=DELIMITED /FIRSTCASE=2 /VARIABLES=
+  RunID A100 Product A100 LockedPredictedShare F20.12 ObservedShare F20.12.
+* Spearman's rho = Pearson correlation of the ranks (ties get their average rank).
+SORT CASES BY RunID.
+RANK VARIABLES=LockedPredictedShare ObservedShare BY RunID /RANK INTO rPred rObs /TIES=MEAN /PRINT=NO.
+SPLIT FILE SEPARATE BY RunID.
+CORRELATIONS /VARIABLES=rPred rObs.
+SPLIT FILE OFF.
+* Compare the correlation with Rho_LockedPrediction_vs_Storefront in tool_results/summary.csv.
+* SPSS shows 3 decimals by default: double-click a table, then a cell, to see more.
+
+* C3. Position model: conditional logit (product + page row + page column), fitted as a stratified Cox model.
+* With one chosen product per trial, Cox partial likelihood = conditional logit. Products never chosen by a run are dropped (as in ACES).
+DATASET ACTIVATE sf.
+SORT CASES BY RunID Product.
+AGGREGATE /OUTFILE=* MODE=ADDVARIABLES /BREAK=RunID Product /EverChosen=MAX(Chosen).
+SELECT IF EverChosen = 1.
+COMPUTE CoxTime = 2 - Chosen.
+SORT CASES BY RunID.
+SPLIT FILE SEPARATE BY RunID.
+COXREG VARIABLES=CoxTime WITH Product PageRow PageCol
+  /STATUS=Chosen(1) /STRATA=Trial
+  /CATEGORICAL=Product PageRow PageCol
+  /CONTRAST (Product)=Indicator(1) /CONTRAST (PageRow)=Indicator /CONTRAST (PageCol)=Indicator
+  /METHOD=ENTER Product PageRow PageCol.
+SPLIT FILE OFF.
+* Reference categories: Product = first product (alphabetical in SPSS; the tool uses the first product in the product list, so check that both use the same one),
+* PageRow = last (bottom) row, PageCol = last column. Compare B and SE with tool_results/storefront_clogit.csv.
+`; }
+
+// ---------- minimal ZIP writer (stored, no compression) ----------
+const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+function crc32(b) { let c = 0xFFFFFFFF; for (let i = 0; i < b.length; i++) c = CRC[(c ^ b[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+function makeZip(files) { const enc = new TextEncoder(), parts = [], cen = []; let off = 0;
+  files.forEach(([name, text]) => { const nb = enc.encode(name), db = typeof text === 'string' ? enc.encode(text) : text, crc = crc32(db);
+    const h = new DataView(new ArrayBuffer(30)); h.setUint32(0, 0x04034b50, true); h.setUint16(4, 20, true); h.setUint16(6, 0x0800, true); h.setUint32(14, crc, true); h.setUint32(18, db.length, true); h.setUint32(22, db.length, true); h.setUint16(26, nb.length, true);
+    parts.push(new Uint8Array(h.buffer), nb, db);
+    const c = new DataView(new ArrayBuffer(46)); c.setUint32(0, 0x02014b50, true); c.setUint16(4, 20, true); c.setUint16(6, 20, true); c.setUint16(8, 0x0800, true); c.setUint32(16, crc, true); c.setUint32(20, db.length, true); c.setUint32(24, db.length, true); c.setUint16(28, nb.length, true); c.setUint32(42, off, true);
+    cen.push(new Uint8Array(c.buffer), nb); off += 30 + nb.length + db.length; });
+  const size = cen.reduce((s, b) => s + b.length, 0), e = new DataView(new ArrayBuffer(22)); e.setUint32(0, 0x06054b50, true); e.setUint16(8, files.length, true); e.setUint16(10, files.length, true); e.setUint32(12, size, true); e.setUint32(16, off, true);
+  return new Blob([...parts, ...cen, new Uint8Array(e.buffer)], { type: 'application/zip' }); }
+
+const fullCSV = rows => (rows.length ? '' : '') + E.toCSV(rows.map(o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, typeof v === 'number' ? (Number.isFinite(v) ? String(v) : '') : v])))) + '\n';
+function verificationFiles() { if (!Object.keys(S.fits || {}).length) $('analyseAll').click();
+  const v = vRows(), base = 'verification_pack/';
+  if (!v.conj.length && !v.trials.length) throw new Error('No results yet. Run a study (or the demo) first.');
+  const manifest = { tool: 'LLM Conjoint Lab', version: document.querySelector('header .sub')?.textContent.split('·')[0].trim(), generated: new Date().toISOString(), project: S.projName, product: S.study.product,
+    pairs: S.design?.length ?? 0, seed: S.study.seed, counterbalance: S.study.counterbalance, storefrontColumns: +S.tasks.cols || 5, runs: units().map(u => ({ RunID: runId(u), label: u.label, provider: u.m.provider, model: u.m.model, condition: u.c.label })),
+    features: v.feats.map(f => ({ difference: f.name, product: xName(f), attribute: f.attr, level: f.level })) };
+  const readme = `LLM Conjoint Lab verification pack
+Generated ${manifest.generated} for "${S.projName}".
+
+Everything here lets you recompute the tool's results without the tool:
+  data/conjoint_long.csv        every valid conjoint answer: ChoseFirst (1/0) and Product1 - Product2 differences (d_ columns)
+  data/products.csv             the storefront products, coded the same way (x_ columns = the d_ columns before differencing)
+  data/storefront_trials.csv    every storefront trial: page order, choice, position, time
+  data/storefront_long.csv      one row per product shown per valid trial (ready for conditional logit)
+  data/locks.csv + locks/*.json the locked conjoint predictions and their SHA-256 fingerprints
+  data/lock_history.csv         every lock made (a pilot locks first; the full run re-locks with all answers)
+  tool_results/*.csv            the tool's own numbers at full precision, to compare against
+  scripts/verify.py             Python: runs checks A, B and C and prints PASS or CHECK for each
+  scripts/verify.R              R: the same checks
+  scripts/verify.sps            SPSS: checks A and C (SPSS can't compute SHA-256)
+  manifest.json                 study settings, models and the column codebook
+
+Quickest check:  python scripts/verify.py      (needs: pip install pandas numpy scipy statsmodels)
+             or  Rscript scripts/verify.R      (needs: install.packages(c("survival","jsonlite","digest")))
+Full step-by-step guide: VALIDATION.md in the GitHub repository.
+`;
+  return [[base + 'READ_ME_FIRST.txt', readme], [base + 'manifest.json', JSON.stringify(manifest, null, 2)],
+    [base + 'data/conjoint_long.csv', fullCSV(v.conj)], [base + 'data/products.csv', fullCSV(v.prods)], [base + 'data/storefront_trials.csv', fullCSV(v.trials)], [base + 'data/storefront_long.csv', fullCSV(v.long)],
+    [base + 'data/locks.csv', fullCSV(v.locks)], [base + 'data/lock_history.csv', fullCSV(v.hist)], ...v.lockFiles.map(([n, t]) => [base + n, t]),
+    [base + 'tool_results/coefficients.csv', fullCSV(v.coefs)], [base + 'tool_results/storefront_comparison.csv', fullCSV(v.comp)], [base + 'tool_results/summary.csv', fullCSV(v.summ)], [base + 'tool_results/storefront_clogit.csv', fullCSV(v.clog)],
+    [base + 'scripts/verify.py', VERIFY_PY], [base + 'scripts/verify.R', VERIFY_R], [base + 'scripts/verify.sps', spssVerify(v.feats)]]; }
+function downloadPack() { try { const files = verificationFiles(); download(`${fn(S.projName)}_verification_${stamp()}.zip`, makeZip(files)); msg('verifyMsg', `Downloaded: ${files.length} files.`); } catch (e) { msg('verifyMsg', e.message, false); } }
+
+function verifyInit() {
+  const nav = $('tabs'); if (nav && !nav.querySelector('[data-t="verify"]')) { const b = document.createElement('button'); b.dataset.t = 'verify'; b.innerHTML = '<span class="n">9</span>Verify'; b.onclick = () => showTab('verify'); nav.appendChild(b); }
+  if (!$('verify')) { const s = document.createElement('section'); s.id = 'verify'; s.innerHTML = `<div class="card">
+    <h2>Verify the results outside this tool</h2>
+    <p>Every number on the Results page can be recomputed from the raw data with standard software, so you, a co-author or a reviewer can confirm it without trusting this tool.</p>
+    <div class="row"><button class="b" id="verifyGo">⬇ Download verification pack (.zip)</button><span id="verifyMsg" class="hint"></span></div>
+    <p class="hint">The pack holds the raw data, the locked predictions, the tool's own results at full precision, and ready-to-run scripts for <b>SPSS</b>, <b>R</b> and <b>Python</b>.</p></div>
+    <div class="card"><h2>The three checks</h2>
+    <p><b>Check A · Conjoint.</b> Re-fit the binary logistic regression (ChoseFirst on the d_ differences, with a constant) for each model in SPSS, R or Python. The coefficients and standard errors should match <code>tool_results/coefficients.csv</code> to at least 4 decimals.</p>
+    <p><b>Check B · Locked prediction.</b> Each <code>locks/*.json</code> file is the exact prediction the tool saved before the storefront. Its SHA-256 fingerprint must match <code>data/locks.csv</code>, so the file can't have been changed afterwards. The script then re-computes the predicted shares from the locked coefficients and the products (share = e<sup>U</sup> ÷ Σe<sup>U</sup>, where U is the sum of coefficient × product value) and checks they match. For proof that the prediction came first, post the fingerprint somewhere dated (OSF, an email to co-authors) before running the storefront.</p>
+    <p><b>Check C · Conjoint vs storefront.</b> Count each product's share of storefront picks, then compare with the locked prediction: Spearman's ρ, the mean share gap and the top pick. Then re-fit the position model (conditional logit: product + page row + page column, one stratum per trial). All should match <code>tool_results/</code>.</p></div>
+    <div class="card"><h2>Step by step</h2><ol>
+    <li>Run a study, then press <b>Analyse</b> on page 7.</li>
+    <li>Press <b>Download verification pack</b> above and unzip it.</li>
+    <li><b>Python:</b> <code>pip install pandas numpy scipy statsmodels</code>, then <code>python scripts/verify.py</code>. It prints PASS or CHECK for every check and writes <code>verify_report_python.txt</code>.</li>
+    <li><b>R:</b> <code>install.packages(c("survival","jsonlite","digest"))</code>, then <code>Rscript scripts/verify.R</code>. It writes <code>verify_report_R.txt</code>.</li>
+    <li><b>SPSS:</b> open <code>scripts/verify.sps</code>, put the folder where you unzipped the pack on the CD line at the top, then Run All. Compare the tables with the files in <code>tool_results/</code> (the comments in the syntax say which number goes with which).</li>
+    <li>Any CHECK: open the report, which lists the numbers that differ and by how much. Small differences in the 5th decimal or beyond are rounding; anything larger means stop and look.</li></ol>
+    <p class="hint">The full guide, with a worked example and expected answers, is VALIDATION.md in the GitHub repository.</p></div>
+    <div class="navrow"><button class="b sec" onclick="showTab('data')">← Back</button><span></span></div>`;
+    document.querySelector('main').appendChild(s); }
+  $('verifyGo').onclick = downloadPack; }
+
+(async () => { await IDB.open(); const s = await IDB.get('state'); if (s) S = { ...DEFAULT(), ...s }; presets = (await IDB.get('presets')) || {}; try { keys = JSON.parse(localStorage.getItem('conjointLabV5.keys') || '{}'); } catch (e) {} renderPresets(); syncAll(); verifyInit(); guideInit(); launchInit(); })();
 
 </script>
 </body></html>

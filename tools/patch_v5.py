@@ -19,7 +19,7 @@ s = src
 
 # ---------------------------------------------------------------- titles / version
 s = s.replace('LLM Conjoint Lab v3 app', 'LLM Conjoint Lab v5 app')
-s = rep(s, '<span class="sub">v3 · build a study', '<span class="sub">v5.2 · build a study')
+s = rep(s, '<span class="sub">v3 · build a study', '<span class="sub">v5.3 · build a study')
 s = re.sub(r'<title>[^<]*</title>', '<title>LLM Conjoint Lab v5</title>', s, count=1)
 
 # ---------------------------------------------------------------- engine: linked attributes in the conjoint wording
@@ -107,6 +107,7 @@ async function workPhase(u, tasks, st, ctl, fn) { let next = 0, errRun = 0;
 async function runUnit(u) { const ctl = run.ctl[u.key] = { stop: false }, first = buildTasks(u, 'first'), st = run.stats[u.key] = { total: first.length + buildTasks(u, 'store').length, done: 0, ok: 0, bad: 0, err: 0, status: 'running' };
   log(`${u.label}: ${first.length} conjoint/ranking calls to go`);
   await workPhase(u, first, st, ctl, t => doTask(u, t)); save();
+  if (S.tasks.conjoint && !S.tasks.store && S.val.products.length && !ctl.stop && !globalStop) await lockPrediction(u);   // conjoint-only run: lock now, so the fingerprint can be posted before the storefront
   if (S.tasks.store && !ctl.stop && !globalStop) {
     const locked = !S.tasks.conjoint || await lockPrediction(u);
     if (!locked) log(`${u.label}: ⚠ the conjoint can't be fitted yet (too few or one-sided answers), so no prediction is locked. The storefront runs anyway; run more pairs before trusting the comparison.`);
@@ -158,9 +159,16 @@ s = rep(s, "function syncAll() { syncStudy(); syncSettings();", "function syncAl
 new_code = (Path(__file__).parent / 'v5_additions.js').read_text(encoding='utf-8')
 guide_code = (Path(__file__).parent / 'guide.js').read_text(encoding='utf-8')  # first-visit tour + one-click demo
 guide_code += "\n" + (Path(__file__).parent / 'launch.js').read_text(encoding='utf-8')  # one-click launch
+root = Path(__file__).resolve().parent.parent
+guide_code += "\nconst VERIFY_PY = " + json.dumps((root / 'verify' / 'verify.py').read_text(encoding='utf-8')) + ";"
+guide_code += "\nconst VERIFY_R = " + json.dumps((root / 'verify' / 'verify.R').read_text(encoding='utf-8')) + ";\n"
+guide_code += (Path(__file__).parent / 'verify.js').read_text(encoding='utf-8')  # page 9: verification pack
 marker = "(async () => { await IDB.open();"
 s = rep(s, marker, new_code + "\n" + guide_code + "\n" + marker)
-s = rep(s, "renderPresets(); syncAll(); })();", "renderPresets(); syncAll(); guideInit(); launchInit(); })();")
+s = rep(s, "renderPresets(); syncAll(); })();", "renderPresets(); syncAll(); verifyInit(); guideInit(); launchInit(); })();")
+# time-stamp every storefront trial and conjoint answer (lets the verification pack show the lock came first)
+s = rep(s, "raw: res.text, served: res.served, cost: res.cost }; return !!pc.choice; }", "raw: res.text, served: res.served, cost: res.cost, at: new Date().toISOString() }; return !!pc.choice; }")
+s = rep(s, "    R.conjoint[t.id] = { pair: t.pair.pair, order: t.order,", "    R.conjoint[t.id] = { at: new Date().toISOString(), pair: t.pair.pair, order: t.order,")
 # models that failed the launch quick check are left out of that launch
 s = rep(s, "function units() { const out = []; S.models.forEach(m => { if", "function units() { const out = []; S.models.filter(m => !m.skip).forEach(m => { if")
 

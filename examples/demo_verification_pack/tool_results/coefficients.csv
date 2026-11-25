@@ -1,0 +1,37 @@
+RunID,Run,Variable,Term,B,SE,p
+Simulated_A,Simulated A,Constant,Constant (first-position bias),-0.06042711388277717,0.09296005712404427,0.5156708426401124
+Simulated_A,Simulated A,d_Screen_size,Screen size (difference),1.8133721236856448,0.1835822174069971,5.2007187847456575e-23
+Simulated_A,Simulated A,d_Screen_type_E_Ink_Carta_1200,Screen type: E Ink Carta 1200,0.4774609219975013,0.17839179106447262,0.007440142361662694
+Simulated_A,Simulated A,d_Screen_type_Color_E_Ink,Screen type: Color E Ink,0.30982976440205606,0.16346838059508334,0.058046073042044406
+Simulated_A,Simulated A,d_Storage,Storage (difference),-0.035829534688950095,0.0037980456296090054,3.959604242558108e-21
+Simulated_A,Simulated A,d_Water_resistance_Waterproof_IPX7,Water resistance: Waterproof (IPX7),-1.966829467335337,0.20523606507807546,9.403405488405783e-22
+Simulated_A,Simulated A,d_Water_resistance_Waterproof_IPX8,Water resistance: Waterproof (IPX8),0.33883178258400126,0.17331450576170473,0.05058176011551874
+Simulated_A,Simulated A,d_Battery_life,Battery life (difference),0.22134249830339722,0.022942750951268236,5.031927217162194e-22
+Simulated_A,Simulated A,d_Weight,Weight (difference),0.028125933292809095,0.0024400898486942,9.68981803622343e-31
+Simulated_A,Simulated A,d_Page_buttons_Yes,Page buttons: Yes,-0.34642596941275305,0.13265185098699828,0.009013473840730642
+Simulated_A,Simulated A,d_Stylus_support_Yes,Stylus support: Yes,0.7590985907624566,0.13989485567560817,5.756386083665527e-8
+Simulated_A,Simulated A,d_Price,Price (difference),-0.011209377335635857,0.0011608622093004606,4.632559198574311e-22
+Simulated_B,Simulated B,Constant,Constant (first-position bias),-0.016404643857556845,0.09057031940930885,0.8562686408000831
+Simulated_B,Simulated B,d_Screen_size,Screen size (difference),1.0119424015076155,0.15797043941809916,1.4948762898652485e-10
+Simulated_B,Simulated B,d_Screen_type_E_Ink_Carta_1200,Screen type: E Ink Carta 1200,-1.3777299392276867,0.17756501282547235,8.559023107965494e-15
+Simulated_B,Simulated B,d_Screen_type_Color_E_Ink,Screen type: Color E Ink,-1.4043630694953797,0.17307377768442075,4.888135246472714e-16
+Simulated_B,Simulated B,d_Storage,Storage (difference),0.06076939146773866,0.004380353125156566,9.211180021130937e-44
+Simulated_B,Simulated B,d_Water_resistance_Waterproof_IPX7,Water resistance: Waterproof (IPX7),-0.24178958394139408,0.16422536458551695,0.14093893058187268
+Simulated_B,Simulated B,d_Water_resistance_Waterproof_IPX8,Water resistance: Waterproof (IPX8),0.8184810583597536,0.17489508043702434,0.000002870983587763117
+Simulated_B,Simulated B,d_Battery_life,Battery life (difference),0.04858980794369944,0.019915926673871594,0.01469758067141931
+Simulated_B,Simulated B,d_Weight,Weight (difference),0.01067054473611678,0.0019160466799745602,2.5614351222271044e-8
+Simulated_B,Simulated B,d_Page_buttons_Yes,Page buttons: Yes,-1.5660882156440394,0.14188228775560613,2.5071445469675377e-28
+Simulated_B,Simulated B,d_Stylus_support_Yes,Stylus support: Yes,0.04811285558138032,0.1338569568644042,0.7192698056307296
+Simulated_B,Simulated B,d_Price,Price (difference),-0.0029814918763162515,0.0009595366753469104,0.0018885557736627225
+Simulated_C,Simulated C,Constant,Constant (first-position bias),0.11697648430348277,0.10837452029404122,0.2804216745901912
+Simulated_C,Simulated C,d_Screen_size,Screen size (difference),2.3939654643072723,0.2296006261388865,1.8737758991966112e-25
+Simulated_C,Simulated C,d_Screen_type_E_Ink_Carta_1200,Screen type: E Ink Carta 1200,1.0236685200136622,0.20670475820347475,7.333312879051965e-7
+Simulated_C,Simulated C,d_Screen_type_Color_E_Ink,Screen type: Color E Ink,-2.622913153044717,0.23817613454900574,3.32666773224937e-28
+Simulated_C,Simulated C,d_Storage,Storage (difference),0.05544079318260842,0.005075067267193547,8.836439940888303e-28
+Simulated_C,Simulated C,d_Water_resistance_Waterproof_IPX7,Water resistance: Waterproof (IPX7),-1.6846286787802691,0.22657377311213728,1.0438420982926734e-13
+Simulated_C,Simulated C,d_Water_resistance_Waterproof_IPX8,Water resistance: Waterproof (IPX8),0.3616731372662503,0.20491445622348983,0.07756448580079182
+Simulated_C,Simulated C,d_Battery_life,Battery life (difference),0.3374349153166638,0.030479738569544487,1.7385280121240237e-28
+Simulated_C,Simulated C,d_Weight,Weight (difference),0.026862957833360693,0.0027586982247050865,2.0852399254372786e-22
+Simulated_C,Simulated C,d_Page_buttons_Yes,Page buttons: Yes,-1.5695893155697256,0.17887097826841136,1.709337440544292e-18
+Simulated_C,Simulated C,d_Stylus_support_Yes,Stylus support: Yes,1.602575094539304,0.18700626485747324,1.0381518470974566e-17
+Simulated_C,Simulated C,d_Price,Price (difference),-0.015021648431993261,0.001494226683800691,8.899897555341091e-24

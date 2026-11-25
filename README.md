@@ -36,6 +36,8 @@ New to it? A short tour opens the first time you load the page (replay it with *
 
 ## Checks that it works
 
+- **Check it yourself, outside the tool:** page 9 (**Verify**) downloads a verification pack with the raw data, the locked predictions, the tool's results and ready-to-run **SPSS, R and Python** scripts. Step-by-step guide: [VALIDATION.md](VALIDATION.md). Worked example with expected output: [examples/demo_verification_pack](examples/demo_verification_pack).
+
 - **Study 2 parity:** the conjoint analysis reproduces the published Study 2 SPSS coefficients to 5 decimals for GPT-4o, Gemini and Claude.
 - **Parameter recovery:** `tests/sim_recovery.py` runs the full Study 3 pipeline on simulated models whose true preferences are known and prints true vs estimated weights. Requires Python with `playwright` and Chrome or Chromium:
 
@@ -49,7 +51,10 @@ New to it? A short tour opens the first time you load the page (replay it with *
 | Path | What |
 |---|---|
 | `index.html` | The Lab. Built from v3 by `tools/patch_v5.py`; do not edit by hand. |
-| `tools/` | `patch_v5.py` + `v5_additions.js` + `guide.js` (tour and demo): everything v5 adds to v3. Rebuild with `python tools/patch_v5.py index.html` |
-| `tests/` | Simulated end-to-end and parameter-recovery check |
+| `tools/` | `patch_v5.py` + `v5_additions.js` + `guide.js` (tour, demo) + `launch.js` (one-click launch) + `verify.js` (page 9): everything v5 adds to v3. Rebuild with `python tools/patch_v5.py index.html` |
+| `tests/` | Simulated end-to-end and parameter-recovery check; verification-pack test |
+| `verify/` | `verify.py` and `verify.R`, the outside-the-tool checks (also bundled into every verification pack) |
+| `examples/` | A finished demo run's verification pack, with the Python and R reports it should produce |
+| `VALIDATION.md` | Step-by-step guide to checking results in SPSS, R or Python |
 | `versions/` | v3 as recovered (18 Nov 2026) and the v4 rebuild, for reference |
 | `CHANGELOG.md` | What changed in each version |

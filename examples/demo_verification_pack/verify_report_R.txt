@@ -1,0 +1,111 @@
+LLM Conjoint Lab verification (R) <c2><b7> pack generated 2026-11-25T23:31:10.833Z <c2><b7> Study 3 – e-readers (conjoint → ACES storefront)
+R version 4.3.3 (2024-02-29), survival 3.5.8
+
+=== Simulated A  (sim · sim-11) ===
+  Check A · conjoint, 1000 answers. Largest difference: B 1.33e-15, SE 7.76e-14
+      Constant                               tool    -0.060427  own    -0.060427
+      d_Battery_life                         tool     0.221342  own     0.221342
+      d_Page_buttons_Yes                     tool    -0.346426  own    -0.346426
+      d_Price                                tool    -0.011209  own    -0.011209
+      d_Screen_size                          tool     1.813372  own     1.813372
+      d_Screen_type_Color_E_Ink              tool     0.309830  own     0.309830
+      d_Screen_type_E_Ink_Carta_1200         tool     0.477461  own     0.477461
+      d_Storage                              tool    -0.035830  own    -0.035830
+      d_Stylus_support_Yes                   tool     0.759099  own     0.759099
+      d_Water_resistance_Waterproof_IPX7     tool    -1.966829  own    -1.966829
+      d_Water_resistance_Waterproof_IPX8     tool     0.338832  own     0.338832
+      d_Weight                               tool     0.028126  own     0.028126
+  [PASS] A: coefficients and SEs match the tool
+  [PASS] B1: the lock file is unchanged (SHA-256 matches)  (locked 2026-11-25T23:30:59.141Z from 1000 answers)
+  [PASS] B2: locked coefficients equal your own re-fit of all conjoint answers  (largest gap 1.33e-15)
+  [PASS] B3: predicted shares re-computed from the locked coefficients match the lock file  (largest gap 5.55e-17)
+  [PASS] B4: a prediction was locked before the first storefront trial  (first lock 2026-11-25T23:30:56.699Z, first trial 2026-11-25T23:30:56.895Z)
+  [PASS] C1: observed storefront shares (300 valid trials) match the tool
+  Locked prediction vs storefront: rho 0.9758, mean share gap 0.0258, top predicted E01, top observed E04
+  [PASS] C2: rho, share gap and top picks match the tool
+      fe_E02               tool    -3.7656  own    -3.7656
+      fe_E03               tool    -2.6637  own    -2.6637
+      fe_E04               tool     0.1655  own     0.1655
+      fe_E06               tool    -0.3017  own    -0.3017
+      fe_E07               tool    -1.0746  own    -1.0746
+      fe_E08               tool    -2.3726  own    -2.3726
+      fe_E09               tool    -4.4499  own    -4.4499
+      fe_E10               tool    -3.0701  own    -3.0701
+      row_1                tool    -0.1307  own    -0.1307
+      col_1                tool     0.1483  own     0.1483
+      col_2                tool    -0.0514  own    -0.0514
+      col_3                tool     0.0258  own     0.0258
+      col_4                tool     0.2292  own     0.2292
+  [PASS] C3: position model (conditional logit) matches the tool  (largest gap 2.22e-16)
+
+=== Simulated B  (sim · sim-22) ===
+  Check A · conjoint, 1000 answers. Largest difference: B 3.33e-15, SE 3.14e-09
+      Constant                               tool    -0.016405  own    -0.016405
+      d_Battery_life                         tool     0.048590  own     0.048590
+      d_Page_buttons_Yes                     tool    -1.566088  own    -1.566088
+      d_Price                                tool    -0.002981  own    -0.002981
+      d_Screen_size                          tool     1.011942  own     1.011942
+      d_Screen_type_Color_E_Ink              tool    -1.404363  own    -1.404363
+      d_Screen_type_E_Ink_Carta_1200         tool    -1.377730  own    -1.377730
+      d_Storage                              tool     0.060769  own     0.060769
+      d_Stylus_support_Yes                   tool     0.048113  own     0.048113
+      d_Water_resistance_Waterproof_IPX7     tool    -0.241790  own    -0.241790
+      d_Water_resistance_Waterproof_IPX8     tool     0.818481  own     0.818481
+      d_Weight                               tool     0.010671  own     0.010671
+  [PASS] A: coefficients and SEs match the tool
+  [PASS] B1: the lock file is unchanged (SHA-256 matches)  (locked 2026-11-25T23:30:59.241Z from 1000 answers)
+  [PASS] B2: locked coefficients equal your own re-fit of all conjoint answers  (largest gap 3.33e-15)
+  [PASS] B3: predicted shares re-computed from the locked coefficients match the lock file  (largest gap 0.00e+00)
+  [PASS] B4: a prediction was locked before the first storefront trial  (first lock 2026-11-25T23:30:56.781Z, first trial 2026-11-25T23:30:56.944Z)
+  [PASS] C1: observed storefront shares (300 valid trials) match the tool
+  Locked prediction vs storefront: rho 0.9848, mean share gap 0.0527, top predicted E01, top observed E01
+  [PASS] C2: rho, share gap and top picks match the tool
+      fe_E02               tool    -1.9865  own    -1.9865
+      fe_E03               tool    -3.8064  own    -3.8064
+      fe_E04               tool    -2.5903  own    -2.5903
+      fe_E05               tool    -2.8755  own    -2.8755
+      fe_E06               tool    -2.0615  own    -2.0615
+      fe_E07               tool    -3.1103  own    -3.1103
+      fe_E08               tool    -5.1631  own    -5.1631
+      fe_E09               tool    -3.8100  own    -3.8100
+      fe_E10               tool    -1.5663  own    -1.5663
+      row_1                tool     0.1106  own     0.1106
+      col_1                tool    -0.4894  own    -0.4894
+      col_2                tool    -0.0948  own    -0.0948
+      col_3                tool    -0.5002  own    -0.5002
+      col_4                tool    -0.0029  own    -0.0029
+  [PASS] C3: position model (conditional logit) matches the tool  (largest gap 7.66e-10)
+
+=== Simulated C  (sim · sim-33) ===
+  Check A · conjoint, 1000 answers. Largest difference: B 4.57e-14, SE 2.30e-08
+      Constant                               tool     0.116976  own     0.116976
+      d_Battery_life                         tool     0.337435  own     0.337435
+      d_Page_buttons_Yes                     tool    -1.569589  own    -1.569589
+      d_Price                                tool    -0.015022  own    -0.015022
+      d_Screen_size                          tool     2.393965  own     2.393965
+      d_Screen_type_Color_E_Ink              tool    -2.622913  own    -2.622913
+      d_Screen_type_E_Ink_Carta_1200         tool     1.023669  own     1.023669
+      d_Storage                              tool     0.055441  own     0.055441
+      d_Stylus_support_Yes                   tool     1.602575  own     1.602575
+      d_Water_resistance_Waterproof_IPX7     tool    -1.684629  own    -1.684629
+      d_Water_resistance_Waterproof_IPX8     tool     0.361673  own     0.361673
+      d_Weight                               tool     0.026863  own     0.026863
+  [PASS] A: coefficients and SEs match the tool
+  [PASS] B1: the lock file is unchanged (SHA-256 matches)  (locked 2026-11-25T23:30:59.333Z from 1000 answers)
+  [PASS] B2: locked coefficients equal your own re-fit of all conjoint answers  (largest gap 4.57e-14)
+  [PASS] B3: predicted shares re-computed from the locked coefficients match the lock file  (largest gap 0.00e+00)
+  [PASS] B4: a prediction was locked before the first storefront trial  (first lock 2026-11-25T23:30:56.846Z, first trial 2026-11-25T23:30:57.000Z)
+  [PASS] C1: observed storefront shares (300 valid trials) match the tool
+  Locked prediction vs storefront: rho 0.8876, mean share gap 0.0217, top predicted E04, top observed E04
+  [PASS] C2: rho, share gap and top picks match the tool
+      fe_E04               tool     0.7863  own     0.7863
+      fe_E06               tool    -0.8769  own    -0.8769
+      fe_E10               tool    -1.8166  own    -1.8166
+      row_1                tool    -0.1487  own    -0.1487
+      col_1                tool     0.0787  own     0.0787
+      col_2                tool    -0.1350  own    -0.1350
+      col_3                tool    -0.0929  own    -0.0929
+      col_4                tool     0.0247  own     0.0247
+  [PASS] C3: position model (conditional logit) matches the tool  (largest gap 1.91e-11)
+
+SUMMARY: 24 PASS, 0 CHECK

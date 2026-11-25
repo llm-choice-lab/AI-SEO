@@ -1,0 +1,102 @@
+{
+  "tool": "LLM Conjoint Lab",
+  "version": "v5.2",
+  "generated": "2026-11-25T23:31:10.833Z",
+  "project": "Study 3 – e-readers (conjoint → ACES storefront)",
+  "product": "e-reader",
+  "pairs": 500,
+  "seed": 20261124,
+  "counterbalance": true,
+  "storefrontColumns": 5,
+  "runs": [
+    {
+      "RunID": "Simulated_A",
+      "label": "Simulated A",
+      "provider": "sim",
+      "model": "sim-11",
+      "condition": "Default"
+    },
+    {
+      "RunID": "Simulated_B",
+      "label": "Simulated B",
+      "provider": "sim",
+      "model": "sim-22",
+      "condition": "Default"
+    },
+    {
+      "RunID": "Simulated_C",
+      "label": "Simulated C",
+      "provider": "sim",
+      "model": "sim-33",
+      "condition": "Default"
+    }
+  ],
+  "features": [
+    {
+      "difference": "d_Screen_size",
+      "product": "x_Screen_size",
+      "attribute": "Screen size",
+      "level": null
+    },
+    {
+      "difference": "d_Screen_type_E_Ink_Carta_1200",
+      "product": "x_Screen_type_E_Ink_Carta_1200",
+      "attribute": "Screen type",
+      "level": "E Ink Carta 1200"
+    },
+    {
+      "difference": "d_Screen_type_Color_E_Ink",
+      "product": "x_Screen_type_Color_E_Ink",
+      "attribute": "Screen type",
+      "level": "Color E Ink"
+    },
+    {
+      "difference": "d_Storage",
+      "product": "x_Storage",
+      "attribute": "Storage",
+      "level": null
+    },
+    {
+      "difference": "d_Water_resistance_Waterproof_IPX7",
+      "product": "x_Water_resistance_Waterproof_IPX7",
+      "attribute": "Water resistance",
+      "level": "Waterproof (IPX7)"
+    },
+    {
+      "difference": "d_Water_resistance_Waterproof_IPX8",
+      "product": "x_Water_resistance_Waterproof_IPX8",
+      "attribute": "Water resistance",
+      "level": "Waterproof (IPX8)"
+    },
+    {
+      "difference": "d_Battery_life",
+      "product": "x_Battery_life",
+      "attribute": "Battery life",
+      "level": null
+    },
+    {
+      "difference": "d_Weight",
+      "product": "x_Weight",
+      "attribute": "Weight",
+      "level": null
+    },
+    {
+      "difference": "d_Page_buttons_Yes",
+      "product": "x_Page_buttons_Yes",
+      "attribute": "Page buttons",
+      "level": "Yes"
+    },
+    {
+      "difference": "d_Stylus_support_Yes",
+      "product": "x_Stylus_support_Yes",
+      "attribute": "Stylus support",
+      "level": "Yes"
+    },
+    {
+      "difference": "d_Price",
+      "product": "x_Price",
+      "attribute": "Price",
+      "level": null
+    }
+  ]
+}

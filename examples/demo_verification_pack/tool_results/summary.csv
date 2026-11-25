@@ -1,0 +1,4 @@
+RunID,Run,ConjointAnswers,LockedFromAnswers,StorefrontValidTrials,Rho_LockedPrediction_vs_Storefront,MeanAbsShareGap,TopPredicted,TopObserved
+Simulated_A,Simulated A,1000,1000,300,0.9757575757575757,0.025780448515441663,E01,E04
+Simulated_B,Simulated B,1000,1000,300,0.9848069807617046,0.052671016409566195,E01,E01
+Simulated_C,Simulated C,1000,1000,300,0.8876253645985946,0.021695689499077943,E04,E04

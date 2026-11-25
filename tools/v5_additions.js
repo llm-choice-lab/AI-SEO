@@ -51,7 +51,7 @@ async function storeTrialV3(u, trial, products, store, ctl, salt) {
   const res = await callRetry(u, image ? E.storefrontImagePrompt(S.study.product) : E.storefrontTextPrompt(S.study.product, page, showHeaders()), image ? drawPage(page) : null, { type: 'store', products: page, image }, ctl);
   const pc = E.parseChoiceName(res.text, names); let mis = null, detail = '';
   if (image && pc.json?.cards) { mis = 0; const notes = []; page.forEach(p => { const c = pc.json.cards.find(x => E.normLevel(x.name) === E.normLevel(p.name)); if (!c) { mis++; notes.push(p.name + ' missing'); return; } showHeaders().slice(1).forEach(h => { const k = Object.keys(c).find(z => E.normLevel(z) === E.normLevel(h)); if (E.normLevel(k ? c[k] : '') !== E.normLevel(p.display[h])) { mis++; notes.push(`${p.name} ${h}: "${k ? c[k] : '—'}"`); } }); }); detail = notes.join('; '); }
-  store[trial] = { order: page.map(p => p.name).join(' | '), choice: pc.choice, position: pc.choice ? page.findIndex(p => p.name === pc.choice) + 1 : null, misreads: mis, misread_detail: detail, raw: res.text, served: res.served, cost: res.cost };
+  store[trial] = { order: page.map(p => p.name).join(' | '), choice: pc.choice, position: pc.choice ? page.findIndex(p => p.name === pc.choice) + 1 : null, misreads: mis, misread_detail: detail, raw: res.text, served: res.served, cost: res.cost, at: new Date().toISOString() };
   return !!pc.choice; }
 
 // ---------- lock the conjoint prediction before the storefront ----------
@@ -64,7 +64,7 @@ async function lockPrediction(u) { const R = resOf(u), rows = conjointRows(u), n
   const coefs = fit.coefs.map(c => [c.term, c.B]);
   const payload = JSON.stringify({ model: u.m.model, condition: u.c.label, answers: n, coefs, predicted });
   R.lock = { at: new Date().toISOString(), n, hash: await sha256(payload), predicted, coefs, payload }; R.locks = [...(R.locks || []), { at: R.lock.at, n, hash: R.lock.hash }];
-  log(`${u.label}: prediction locked from ${n} answers · sha256 ${R.lock.hash.slice(0, 12)}…`); save(); return true; }
+  log(`${u.label}: prediction locked from ${n} answers · sha256 ${R.lock.hash}`); save(); return true; }
 
 // ---------- validation: one product best on every attribute with a clear direction ----------
 function validationProducts() { const P = JSON.parse(JSON.stringify(S.val.products)); if (P.length < 2) return {};
@@ -104,8 +104,13 @@ function acesClogit(rows, P) { const cols = +S.tasks.cols || 5, ids = P.map(p =>
       const ci = s.alts.findIndex(a => a.id === s.chosen); L += Math.log(pr[ci]); const xb = new Array(k).fill(0); s.alts.forEach((a, i) => a.x.forEach((v, j) => xb[j] += pr[i] * v));
       s.alts[ci].x.forEach((v, j) => g[j] += v - xb[j]); s.alts.forEach((a, i) => { for (let j = 0; j < k; j++) for (let l = 0; l < k; l++) H[j][l] += pr[i] * (a.x[j] - xb[j]) * (a.x[l] - xb[l]); }); });
     return { g, L }; };
-  for (let it = 0; it < 100; it++) { const { g, L } = step(); const Hi = E.inv ? E.inv(H) : invMat(H); if (!Hi) return { error: 'Position model could not be estimated (a product or position is perfectly predictive).' };
-    b = b.map((v, j) => v + Hi[j].reduce((t, h, l) => t + h * g[l], 0)); if (Math.abs(L - ll) < 1e-10) { ll = L; break; } ll = L; }
+  const llAt = bb => D.reduce((L, s) => { const eta = s.alts.map(a => a.x.reduce((t, v, j) => t + v * bb[j], 0)), mx = Math.max(...eta), Z = eta.reduce((z, e) => z + Math.exp(e - mx), 0);
+    return L + eta[s.alts.findIndex(a => a.id === s.chosen)] - mx - Math.log(Z); }, 0);
+  // Newton-Raphson with step-halving: a full step can overshoot when a product is chosen only once or twice
+  for (let it = 0; it < 200; it++) { const { g, L } = step(); const Hi = invMat(H); if (!Hi) return { error: 'Position model could not be estimated (a product or position is perfectly predictive).' };
+    const dir = Hi.map(r => r.reduce((t, h, l) => t + h * g[l], 0)); let lam = 1, nb, nl;
+    for (let h = 0; h < 40; h++) { nb = b.map((v, j) => v + lam * dir[j]); nl = llAt(nb); if (Number.isFinite(nl) && nl >= L - 1e-12) break; lam /= 2; }
+    b = nb; if (Math.abs(nl - L) < 1e-12) { ll = nl; break; } ll = nl; }
   step(); const V = invMat(H), ll0 = D.reduce((t, s) => t + Math.log(1 / s.alts.length), 0);
   const terms = vars.map((v, j) => { const se = V ? Math.sqrt(V[j][j]) : NaN, z = b[j] / se; return { term: v, B: b[j], SE: se, z, p: 2 * (1 - normCdfV5(Math.abs(z))), OR: Math.exp(b[j]) }; });
   return { terms, n: D.length, ll, ll0, r2: 1 - ll / ll0, ref: `${keepIds[0]}, bottom row, last column`, never: ids.filter(i => !chosen.has(i)) }; }

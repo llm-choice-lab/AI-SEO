@@ -1,5 +1,12 @@
 # Changelog
 
+## v5.3 — 26 Nov 2026
+
+- **Page 9 · Verify** and **Download verification pack** (.zip): raw conjoint and storefront data, the locked prediction files with their SHA-256 fingerprints and lock history, the tool's results at full precision, and SPSS, R and Python scripts that recompute everything (checks A, B, C). Guide: VALIDATION.md; worked example: examples/demo_verification_pack.
+- Every conjoint answer and storefront trial is now time-stamped, so the pack can show the prediction was locked before the first storefront trial.
+- A conjoint-only run (storefront switched off) now locks the prediction, so the fingerprint can be posted (e.g. OSF) before the storefront runs. The log shows the full fingerprint.
+- Fixed: the storefront position model (conditional logit) could fail to converge when a product was chosen only once or twice. Newton steps are now halved when they overshoot; results agree with R's survival::clogit to 1e-9.
+
 ## v5.2 — 26 Nov 2026
 
 - **▶ Launch study** (Run page and header): one click runs a 1-call check per model (models that fail are skipped for that launch and listed), the validation check, the pilot, a cost check projected from the pilot (with an option to skip asking when the full run fits under the spend cap), the full run and the analysis. Press it again after a stop to carry on.

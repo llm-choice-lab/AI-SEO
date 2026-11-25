@@ -21,6 +21,7 @@ Want to see it work first? The demo uses simulated models, so it needs no API ke
 <b>Prediction vs storefront</b>: whether its conjoint predicted what it actually picked (ρ near 1 = yes).<br>
 <b>Compare models</b>: which preferences hold across every model.` },
   { tab: 'data', el: '#expGo', title: '8 · Export', body: 'Download everything: Excel or CSV for each part, SPSS syntax to rerun the analysis yourself, or a PDF report. Save the project file to share or reload a study later.' },
+  { tab: 'verify', el: '#verifyGo', title: '9 · Verify', body: 'Check every result outside this tool. The verification pack holds the raw data, the locked predictions and ready-to-run <b>SPSS, R and Python</b> scripts. They re-fit the conjoint, confirm the prediction was locked before the storefront and was not changed, and recompute the storefront comparison, printing PASS or CHECK for each.' },
   { title: "That's it", body: 'Press <b>? Tour</b> at the top any time to see this again, or <b>▶ Demo</b> to watch a full run on simulated models.', demo: true }
 ];
 
