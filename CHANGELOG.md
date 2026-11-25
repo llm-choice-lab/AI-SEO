@@ -1,5 +1,18 @@
 # Changelog
 
+## v5.1 — 25 Nov 2026
+
+- Study 3 lineup moved from OpenRouter to direct OpenAI, Anthropic and Google keys: GPT-4o (2024-11-20), GPT-4o mini, GPT-6 Luna; Claude Haiku 5.5, Haiku 4.5, Sonnet 5.5; Gemini 2.5, 3.1 and 3.5 Flash-Lite.
+- Spend is counted from token use and list prices for direct API calls; the cost line projects the cost of a full run from the calls so far.
+- Reasoning effort is sent to OpenAI GPT-5/GPT-6/o-series models as well as OpenRouter models.
+- If the conjoint can't be fitted yet (too few or one-sided answers), the storefront still runs and the log warns that no prediction was locked.
+- Pilot size raised to 30 pairs.
+
+## v5.1 docs and tests — 26 Nov 2026
+
+- README rewritten for direct keys and for people downloading the tool.
+- `tests/sim_recovery.py`: full Study 3 run on simulated models with known preferences; all 36 weights recovered within 3 SE, locked prediction vs storefront ρ = .92–.98.
+
 ## v5.0 — 24 Nov 2026
 
 v3 (recovered from the 18 Nov chat) is the base again, and it stays a single HTML file with v3's own storefront. v5 adds:
