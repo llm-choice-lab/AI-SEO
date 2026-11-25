@@ -2,6 +2,9 @@
 
 ## v5.2 — 26 Nov 2026
 
+- **▶ Launch study** (Run page and header): one click runs a 1-call check per model (models that fail are skipped for that launch and listed), the validation check, the pilot, a cost check projected from the pilot (with an option to skip asking when the full run fits under the spend cap), the full run and the analysis. Press it again after a stop to carry on.
+- Hosted on GitHub Pages: https://llm-choice-lab.github.io/ai-seo/
+
 - **Guided tour**: opens on first visit and walks through the 8 pages, highlighting the real controls; **? Tour** in the header replays it.
 - **One-click demo**: **▶ Demo** runs Study 3 on 3 simulated models (validation check, pilot, analysis) in a few seconds with no keys or cost; a banner marks demo results, and **Exit demo** restores the project you had open.
 

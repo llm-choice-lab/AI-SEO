@@ -18,14 +18,11 @@ Unclear answers are asked again once, then recorded as missing (never defaulted 
 
 ## Running it
 
-1. Download `index.html` (green **Code** button → **Download ZIP**, or open the file and click **Download raw file**). Open it in Chrome.
+1. Open **https://llm-choice-lab.github.io/ai-seo/** in Chrome (nothing to install). Or download `index.html` and open it from your computer.
 2. **Page 1:** load **Study 3 (e-readers, OpenAI + Claude + Gemini, built in)**.
 3. **Page 4:** paste your OpenAI, Anthropic and Google API keys. The 9 starting models are listed; change them any time with **Browse model list**. An OpenRouter key also works for any model on OpenRouter.
-4. **Page 6:**
-   - **Validation check** first: one product is best on every attribute, so each model should pick it every time.
-   - **Start** at **Pilot** size, check the cost line, then switch to **Full** and press **Start** again (it carries on from the pilot).
-   - Set a **spend cap**: the run pauses when it is reached.
-5. **Results → Analyse.**
+4. Press **▶ Launch study**. It runs, in order: a 1-call check per model, the validation check (one product is best on everything, so each model should pick it every time), the pilot, a cost check for the full run (you confirm), the full run, and the analysis. Set a **spend cap** on page 6: the run pauses when it is reached.
+5. Results open on page 7. Each step can also be run by hand on page 6.
 
 New to it? A short tour opens the first time you load the page (replay it with **? Tour** at the top). **▶ Demo** runs a full study on 3 simulated models in a few seconds, with no keys and no cost; **Exit demo** puts your own project back.
 

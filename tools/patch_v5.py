@@ -28,7 +28,7 @@ s = rep(s, "      if (disc.length) p += (scale.length ? 'It has ' : `The ${ord} 
 
 # ---------------------------------------------------------------- state defaults
 s = rep(s, "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini' },",
-        "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini', reasoning: 'low', runSize: 'pilot', pilotPairs: 30, pilotTrials: 20, pilotRanks: 3, spendCap: 30, validationTrials: 10 },")
+        "  settings: { temperature: '', maxTokens: 2000, conc: 4, retries: 3, reask: true, assistModel: 'openai/gpt-4o-mini', reasoning: 'low', runSize: 'pilot', pilotPairs: 30, pilotTrials: 20, pilotRanks: 3, spendCap: 30, validationTrials: 10, autoFull: false },")
 
 # ---------------------------------------------------------------- presets: Study 3 built in
 s = rep(s, "function renderPresets() { $('presetSel').innerHTML = ['Study 2 (speakers, built in)', ...Object.keys(presets)]",
@@ -157,9 +157,12 @@ s = rep(s, "function syncAll() { syncStudy(); syncSettings();", "function syncAl
 # ---------------------------------------------------------------- new code: Study 3, lock, validation, analysis
 new_code = (Path(__file__).parent / 'v5_additions.js').read_text(encoding='utf-8')
 guide_code = (Path(__file__).parent / 'guide.js').read_text(encoding='utf-8')  # first-visit tour + one-click demo
+guide_code += "\n" + (Path(__file__).parent / 'launch.js').read_text(encoding='utf-8')  # one-click launch
 marker = "(async () => { await IDB.open();"
 s = rep(s, marker, new_code + "\n" + guide_code + "\n" + marker)
-s = rep(s, "renderPresets(); syncAll(); })();", "renderPresets(); syncAll(); guideInit(); })();")
+s = rep(s, "renderPresets(); syncAll(); })();", "renderPresets(); syncAll(); guideInit(); launchInit(); })();")
+# models that failed the launch quick check are left out of that launch
+s = rep(s, "function units() { const out = []; S.models.forEach(m => { if", "function units() { const out = []; S.models.filter(m => !m.skip).forEach(m => { if")
 
 out_path.write_text(s, encoding='utf-8')
 print('written', out_path, len(s))
